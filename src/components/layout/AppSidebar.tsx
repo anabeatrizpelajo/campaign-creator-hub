@@ -8,7 +8,8 @@ import {
   Layers, 
   FileImage,
   Settings,
-  Zap
+  Zap,
+  Copy
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -26,6 +27,7 @@ import {
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Templates", url: "/templates", icon: Copy },
   { title: "Usuários", url: "/users", icon: Users },
   { title: "Perfis Facebook", url: "/profiles", icon: Facebook },
   { title: "Business Managers", url: "/business-managers", icon: Building2 },
