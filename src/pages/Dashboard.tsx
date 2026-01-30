@@ -6,11 +6,13 @@ import {
   Megaphone, 
   Layers, 
   FileImage,
-  TrendingUp
+  TrendingUp,
+  Copy
 } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
 
 const stats = [
   { title: "Usuários", value: 24, icon: Users, trend: { value: 12, isPositive: true } },
@@ -21,6 +23,12 @@ const stats = [
   { title: "Conjuntos de Anúncios", value: 128, icon: Layers },
   { title: "Anúncios", value: 384, icon: FileImage, trend: { value: 22, isPositive: true } },
   { title: "Gasto Mensal", value: "R$ 45.8k", icon: TrendingUp, subtitle: "Meta API" },
+];
+
+const quickTemplates = [
+  { id: "1", name: "Campanha Black Friday", type: "Campanha + Conjunto + Anúncio", usageCount: 45 },
+  { id: "2", name: "Lead Gen Padrão", type: "Campanha + Conjunto", usageCount: 32 },
+  { id: "3", name: "Remarketing Básico", type: "Conjunto + Anúncio", usageCount: 28 },
 ];
 
 export default function Dashboard() {
@@ -48,39 +56,30 @@ export default function Dashboard() {
         <RecentActivity />
         
         <div className="bg-card rounded-lg border p-6">
-          <h3 className="font-semibold mb-4">Status das Integrações</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                  <Facebook className="w-4 h-4 text-primary" />
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Templates Rápidos</h3>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/templates">Ver todos</a>
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {quickTemplates.map((template) => (
+              <div key={template.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                    <Copy className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{template.name}</p>
+                    <p className="text-xs text-muted-foreground">{template.type}</p>
+                  </div>
                 </div>
-                <span className="text-sm font-medium">Meta API</span>
-              </div>
-              <span className="status-badge status-active">Conectado</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                  </svg>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">{template.usageCount}x usado</span>
+                  <Button size="sm" variant="secondary">Usar</Button>
                 </div>
-                <span className="text-sm font-medium">n8n Workflows</span>
               </div>
-              <span className="status-badge status-active">Ativo</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="12" r="10"/>
-                  </svg>
-                </div>
-                <span className="text-sm font-medium">Lovable Cloud</span>
-              </div>
-              <span className="status-badge status-active">Operacional</span>
-            </div>
+            ))}
           </div>
         </div>
       </div>
