@@ -47,6 +47,17 @@ const formatBudget = (cents: number | null) => {
   return `R$ ${(cents / 100).toFixed(2)}`;
 };
 
+const formatObjective = (objective: string) => {
+  const objectives: Record<string, string> = {
+    OUTCOME_AWARENESS: "Reconhecimento",
+    OUTCOME_TRAFFIC: "Tráfego",
+    OUTCOME_ENGAGEMENT: "Engajamento",
+    OUTCOME_LEADS: "Cadastros",
+    OUTCOME_SALES: "Vendas",
+  };
+  return objectives[objective] || objective;
+};
+
 const getSyncBadge = (sync_status: string) => {
   switch (sync_status) {
     case "synced":
@@ -65,7 +76,7 @@ const getStatusBadge = (status: string) => {
     case "ACTIVE":
       return <Badge className="bg-green-500">Ativo</Badge>;
     case "PAUSED":
-      return <Badge variant="secondary">Pausado</Badge>;
+      return <Badge className="bg-yellow-500 text-black">Pausado</Badge>;
     case "ARCHIVED":
       return <Badge variant="outline">Arquivado</Badge>;
     case "DRAFT":
@@ -227,7 +238,11 @@ export default function CampaignsPage() {
 
   const columns = [
     { key: "name", header: "Campanha" },
-    { key: "objective", header: "Objetivo" },
+    {
+      key: "objective",
+      header: "Objetivo",
+      render: (campaign: Campaign) => formatObjective(campaign.objective),
+    },
     {
       key: "ad_account",
       header: "Conta",
