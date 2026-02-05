@@ -1,11 +1,31 @@
 import { Link } from "react-router-dom";
-import { Plus, MoreHorizontal, RefreshCw } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Plus, MoreHorizontal, RefreshCw, Pencil, Trash2, Archive } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Campaign {
   id: string;
@@ -14,7 +34,10 @@ interface Campaign {
   status: string;
   sync_status: string;
   daily_budget: number | null;
+  facebook_campaign_id: string | null;
+  ad_account_id: string;
   ad_accounts: {
+    id: string;
     account_name: string;
   } | null;
 }
@@ -43,6 +66,8 @@ const getStatusBadge = (status: string) => {
       return <Badge className="bg-green-500">Ativo</Badge>;
     case "PAUSED":
       return <Badge variant="secondary">Pausado</Badge>;
+    case "ARCHIVED":
+      return <Badge variant="outline">Arquivado</Badge>;
     case "DRAFT":
       return <Badge variant="outline">Rascunho</Badge>;
     default:
@@ -51,18 +76,154 @@ const getStatusBadge = (status: string) => {
 };
 
 export default function CampaignsPage() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ["campaigns"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campaigns")
-        .select("*, ad_accounts(account_name)")
+        .select("*, ad_accounts(id, account_name)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Campaign[];
     },
   });
+
+  // Toggle status mutation (ACTIVE <-> PAUSED)
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ campaign, newStatus }: { campaign: Campaign; newStatus: string }) => {
+      // 1. Optimistic update in Supabase
+      const { error } = await supabase
+        .from("campaigns")
+        .update({ status: newStatus, sync_status: "pending" })
+        .eq("id", campaign.id);
+
+      if (error) throw error;
+
+      // 2. Trigger n8n webhook if it has a facebook ID
+      if (campaign.facebook_campaign_id) {
+        const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_EDIT;
+        if (n8nWebhookUrl) {
+          try {
+            await fetch(n8nWebhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "status_change",
+                campaign_id: campaign.id,
+                facebook_campaign_id: campaign.facebook_campaign_id,
+                new_status: newStatus,
+              }),
+            });
+          } catch (e) {
+            console.warn("n8n webhook error:", e);
+          }
+        }
+      }
+
+      return newStatus;
+    },
+    onSuccess: (newStatus) => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast({
+        title: newStatus === "ACTIVE" ? "Campanha ativada" : "Campanha pausada",
+        description: "A alteração será sincronizada com o Facebook.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Erro ao alterar status",
+        description: error.message,
+      });
+    },
+  });
+
+  // Archive mutation
+  const archiveMutation = useMutation({
+    mutationFn: async (campaign: Campaign) => {
+      const { error } = await supabase
+        .from("campaigns")
+        .update({ status: "ARCHIVED", sync_status: "pending" })
+        .eq("id", campaign.id);
+
+      if (error) throw error;
+
+      if (campaign.facebook_campaign_id) {
+        const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_EDIT;
+        if (n8nWebhookUrl) {
+          try {
+            await fetch(n8nWebhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "status_change",
+                campaign_id: campaign.id,
+                facebook_campaign_id: campaign.facebook_campaign_id,
+                new_status: "ARCHIVED",
+              }),
+            });
+          } catch (e) {
+            console.warn("n8n webhook error:", e);
+          }
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast({ title: "Campanha arquivada" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Erro", description: error.message });
+    },
+  });
+
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (campaign: Campaign) => {
+      const { error } = await supabase
+        .from("campaigns")
+        .delete()
+        .eq("id", campaign.id);
+
+      if (error) throw error;
+
+      if (campaign.facebook_campaign_id) {
+        const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_DELETE;
+        if (n8nWebhookUrl) {
+          try {
+            await fetch(n8nWebhookUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "delete",
+                campaign_id: campaign.id,
+                facebook_campaign_id: campaign.facebook_campaign_id,
+                ad_account_id: campaign.ad_account_id,
+              }),
+            });
+          } catch (e) {
+            console.warn("n8n webhook error:", e);
+          }
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast({ title: "Campanha excluída" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Erro ao excluir", description: error.message });
+    },
+  });
+
+  const handleToggle = (campaign: Campaign) => {
+    if (campaign.status === "ARCHIVED") return; // Can't toggle archived
+    const newStatus = campaign.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    toggleStatusMutation.mutate({ campaign, newStatus });
+  };
 
   const columns = [
     { key: "name", header: "Campanha" },
@@ -83,17 +244,116 @@ export default function CampaignsPage() {
       render: (campaign: Campaign) => getStatusBadge(campaign.status),
     },
     {
+      key: "toggle",
+      header: "Ativo",
+      render: (campaign: Campaign) => (
+        <Switch
+          checked={campaign.status === "ACTIVE"}
+          disabled={campaign.status === "ARCHIVED" || toggleStatusMutation.isPending}
+          onCheckedChange={() => handleToggle(campaign)}
+          aria-label={campaign.status === "ACTIVE" ? "Desativar campanha" : "Ativar campanha"}
+        />
+      ),
+    },
+    {
       key: "sync_status",
       header: "Sincronização",
-      render: (campaign: Campaign) => getSyncBadge(campaign.sync_status),
+      render: (campaign: Campaign) => (
+        <div className="flex items-center gap-2">
+          {getSyncBadge(campaign.sync_status)}
+          {campaign.facebook_campaign_id && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              title="Sincronizar com Meta"
+              onClick={async () => {
+                const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_EDIT;
+                if (n8nWebhookUrl) {
+                  try {
+                    await fetch(n8nWebhookUrl, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "sync",
+                        campaign_id: campaign.id,
+                        facebook_campaign_id: campaign.facebook_campaign_id,
+                      }),
+                    });
+                    toast({ title: "Sincronização iniciada" });
+                    setTimeout(() => queryClient.invalidateQueries({ queryKey: ["campaigns"] }), 2000);
+                  } catch (e) {
+                    console.warn("Sync error:", e);
+                  }
+                }
+              }}
+            >
+              <RefreshCw className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+      ),
     },
     {
       key: "actions",
       header: "",
-      render: () => (
-        <Button variant="ghost" size="sm">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
+      render: (campaign: Campaign) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link to={`/campaigns/${campaign.id}/edit`} className="flex items-center">
+                <Pencil className="w-4 h-4 mr-2" />
+                Editar
+              </Link>
+            </DropdownMenuItem>
+
+            {campaign.status !== "ARCHIVED" && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => archiveMutation.mutate(campaign)}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  Arquivar
+                </DropdownMenuItem>
+              </>
+            )}
+
+            <DropdownMenuSeparator />
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <DropdownMenuItem
+                  onSelect={(e) => e.preventDefault()}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir Campanha?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação não pode ser desfeita. A campanha será removida permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteCampaignMutation.mutate(campaign)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];

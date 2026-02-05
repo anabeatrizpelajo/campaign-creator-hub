@@ -1,11 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Send, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
     Select,
     SelectContent,
@@ -23,7 +22,6 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 
 const CAMPAIGN_OBJECTIVES = [
     { value: "OUTCOME_AWARENESS", label: "Reconhecimento", minBudget: 5 },
@@ -33,121 +31,127 @@ const CAMPAIGN_OBJECTIVES = [
     { value: "OUTCOME_SALES", label: "Vendas", minBudget: 20 },
 ];
 
-interface AdAccount {
+interface Campaign {
     id: string;
-    account_id: string;
-    account_name: string;
+    name: string;
+    objective: string;
+    daily_budget: number;
+    facebook_campaign_id: string | null;
+    ad_account_id: string;
 }
 
-export default function CreateCampaignPage() {
+export default function EditCampaignPage() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { id } = useParams<{ id: string }>();
     const { toast } = useToast();
 
-    const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
     const [formData, setFormData] = useState({
         name: "",
         objective: "",
         daily_budget: "",
     });
 
-    // Fetch ad accounts for selection
-    const { data: adAccounts, isLoading: loadingAccounts } = useQuery({
-        queryKey: ["ad_accounts"],
+    // Fetch campaign data
+    const { data: campaign, isLoading } = useQuery({
+        queryKey: ["campaign", id],
         queryFn: async () => {
             const { data, error } = await supabase
-                .from("ad_accounts")
-                .select("id, account_id, account_name")
-                .eq("status", "active");
+                .from("campaigns")
+                .select("*")
+                .eq("id", id)
+                .single();
+
             if (error) throw error;
-            return data as AdAccount[];
+            return data as Campaign;
         },
+        enabled: !!id,
     });
+
+    // Populate form when campaign loads
+    useEffect(() => {
+        if (campaign) {
+            setFormData({
+                name: campaign.name,
+                objective: campaign.objective,
+                daily_budget: (campaign.daily_budget / 100).toFixed(2),
+            });
+        }
+    }, [campaign]);
 
     // Get minimum budget based on selected objective
     const selectedObjective = CAMPAIGN_OBJECTIVES.find(
         (obj) => obj.value === formData.objective
     );
     const minBudget = selectedObjective?.minBudget || 5;
+    const budgetValue = parseFloat(formData.daily_budget) || 0;
+    const isBudgetValid = budgetValue >= minBudget;
 
-    // Toggle account selection
-    const toggleAccount = (accountId: string) => {
-        setSelectedAccounts((prev) =>
-            prev.includes(accountId)
-                ? prev.filter((id) => id !== accountId)
-                : [...prev, accountId]
-        );
-    };
-
-    // Create campaign mutation (supports multiple accounts)
-    const createCampaignMutation = useMutation({
+    // Update campaign mutation
+    const updateCampaignMutation = useMutation({
         mutationFn: async () => {
-            const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_CREATE;
-            const createdCampaigns = [];
+            const newBudget = Math.round(parseFloat(formData.daily_budget) * 100);
 
-            // Create one campaign per selected account
-            for (const accountId of selectedAccounts) {
-                const { data: campaign, error } = await supabase
-                    .from("campaigns")
-                    .insert({
-                        user_id: user?.id,
-                        ad_account_id: accountId,
-                        name: formData.name,
-                        objective: formData.objective,
-                        daily_budget: Math.round(parseFloat(formData.daily_budget) * 100),
-                        status: "DRAFT",
-                        sync_status: "pending",
-                    })
-                    .select()
-                    .single();
+            // 1. Update in Supabase
+            const { error } = await supabase
+                .from("campaigns")
+                .update({
+                    name: formData.name,
+                    objective: formData.objective,
+                    daily_budget: newBudget,
+                    sync_status: "pending",
+                })
+                .eq("id", id);
 
-                if (error) throw error;
-                createdCampaigns.push(campaign);
+            if (error) throw error;
 
-                // Trigger n8n webhook for each campaign
+            // 2. Trigger n8n webhook if it has a facebook ID
+            if (campaign?.facebook_campaign_id) {
+                const n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_EDIT;
                 if (n8nWebhookUrl) {
                     try {
                         await fetch(n8nWebhookUrl, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
-                                campaign_id: campaign.id,
-                                user_id: user?.id,
+                                action: "update",
+                                campaign_id: id,
+                                facebook_campaign_id: campaign.facebook_campaign_id,
+                                name: formData.name,
+                                objective: formData.objective,
+                                daily_budget: newBudget,
                             }),
                         });
                     } catch (e) {
-                        console.warn("n8n webhook not reachable:", e);
+                        console.warn("n8n webhook error:", e);
                     }
                 }
             }
-
-            return createdCampaigns;
         },
-        onSuccess: (campaigns) => {
+        onSuccess: () => {
             toast({
-                title: `${campaigns.length} campanha(s) criada(s)!`,
-                description: "As campanhas foram salvas e serão sincronizadas em breve.",
+                title: "Campanha atualizada!",
+                description: "As alterações foram salvas e serão sincronizadas em breve.",
             });
             navigate("/campaigns");
         },
         onError: (error: any) => {
             toast({
                 variant: "destructive",
-                title: "Erro ao criar campanha",
+                title: "Erro ao atualizar",
                 description: error.message,
             });
         },
     });
 
-    const budgetValue = parseFloat(formData.daily_budget) || 0;
-    const isBudgetValid = budgetValue >= minBudget;
+    const isFormValid = formData.name && formData.objective && formData.daily_budget && isBudgetValid;
 
-    const isFormValid =
-        selectedAccounts.length > 0 &&
-        formData.name &&
-        formData.objective &&
-        formData.daily_budget &&
-        isBudgetValid;
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="animate-fade-in max-w-2xl mx-auto">
@@ -158,56 +162,12 @@ export default function CreateCampaignPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Criar Nova Campanha</CardTitle>
+                    <CardTitle>Editar Campanha</CardTitle>
                     <CardDescription>
-                        Preencha os dados abaixo para criar uma campanha no Facebook Ads
+                        Altere os dados da sua campanha
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Ad Account Selection - Multi Select */}
-                    <div className="space-y-3">
-                        <Label>Contas de Anúncio</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Selecione uma ou mais contas para criar a campanha
-                        </p>
-                        <div className="border rounded-lg p-4 space-y-3 max-h-48 overflow-y-auto">
-                            {loadingAccounts ? (
-                                <p className="text-sm text-muted-foreground">Carregando...</p>
-                            ) : adAccounts?.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
-                                    Nenhuma conta encontrada
-                                </p>
-                            ) : (
-                                adAccounts?.map((account) => (
-                                    <div
-                                        key={account.id}
-                                        className="flex items-center space-x-3"
-                                    >
-                                        <Checkbox
-                                            id={account.id}
-                                            checked={selectedAccounts.includes(account.id)}
-                                            onCheckedChange={() => toggleAccount(account.id)}
-                                        />
-                                        <label
-                                            htmlFor={account.id}
-                                            className="text-sm font-medium cursor-pointer"
-                                        >
-                                            {account.account_name}{" "}
-                                            <span className="text-muted-foreground">
-                                                ({account.account_id})
-                                            </span>
-                                        </label>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                        {selectedAccounts.length > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                                {selectedAccounts.length} conta(s) selecionada(s)
-                            </p>
-                        )}
-                    </div>
-
                     {/* Campaign Name */}
                     <div className="space-y-2">
                         <Label htmlFor="name">Nome da Campanha</Label>
@@ -245,8 +205,8 @@ export default function CreateCampaignPage() {
                             <Alert className="mt-2">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertDescription>
-                                    O objetivo <strong>Vendas</strong> requer um orçamento mínimo
-                                    de <strong>R$ 20,00</strong> por dia.
+                                    O objetivo <strong>Vendas</strong> requer orçamento mínimo de{" "}
+                                    <strong>R$ 20,00</strong>.
                                 </AlertDescription>
                             </Alert>
                         )}
@@ -281,18 +241,18 @@ export default function CreateCampaignPage() {
                     <Button
                         className="w-full"
                         size="lg"
-                        disabled={!isFormValid || createCampaignMutation.isPending}
-                        onClick={() => createCampaignMutation.mutate()}
+                        disabled={!isFormValid || updateCampaignMutation.isPending}
+                        onClick={() => updateCampaignMutation.mutate()}
                     >
-                        {createCampaignMutation.isPending ? (
+                        {updateCampaignMutation.isPending ? (
                             <>
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Criando...
+                                Salvando...
                             </>
                         ) : (
                             <>
-                                <Send className="w-4 h-4 mr-2" />
-                                Criar Campanha{selectedAccounts.length > 1 ? "s" : ""}
+                                <Save className="w-4 h-4 mr-2" />
+                                Salvar Alterações
                             </>
                         )}
                     </Button>

@@ -14,6 +14,7 @@ import BusinessManagersPage from "./pages/BusinessManagersPage";
 import AdAccountsPage from "./pages/AdAccountsPage";
 import CampaignsPage from "./pages/CampaignsPage";
 import CreateCampaignPage from "./pages/CreateCampaignPage";
+import EditCampaignPage from "./pages/EditCampaignPage";
 import AdSetsPage from "./pages/AdSetsPage";
 import AdsPage from "./pages/AdsPage";
 import AutomationsPage from "./pages/AutomationsPage";
@@ -60,6 +61,7 @@ const App = () => (
                       <Route path="/ad-accounts" element={<AdAccountsPage />} />
                       <Route path="/campaigns" element={<CampaignsPage />} />
                       <Route path="/campaigns/create" element={<CreateCampaignPage />} />
+                      <Route path="/campaigns/:id/edit" element={<EditCampaignPage />} />
                       <Route path="/ad-sets" element={<AdSetsPage />} />
                       <Route path="/ads" element={<AdsPage />} />
                       <Route path="/automations" element={<AutomationsPage />} />
