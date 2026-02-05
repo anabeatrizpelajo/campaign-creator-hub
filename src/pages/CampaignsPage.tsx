@@ -1,65 +1,125 @@
-import { Plus, MoreHorizontal } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, MoreHorizontal, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Campaign {
   id: string;
   name: string;
   objective: string;
-  adAccount: string;
-  budget: string;
-  spent: string;
-  status: "active" | "paused" | "error";
-  results: string;
+  status: string;
+  sync_status: string;
+  daily_budget: number | null;
+  ad_accounts: {
+    account_name: string;
+  } | null;
 }
 
-const mockCampaigns: Campaign[] = [
-  { id: "1", name: "Black Friday 2024", objective: "Conversões", adAccount: "Conta Principal", budget: "R$ 10.000", spent: "R$ 4.532", status: "active", results: "234 vendas" },
-  { id: "2", name: "Lead Generation Q1", objective: "Leads", adAccount: "Conta Lead Gen", budget: "R$ 5.000", spent: "R$ 3.200", status: "active", results: "890 leads" },
-  { id: "3", name: "Brand Awareness", objective: "Alcance", adAccount: "Conta Principal", budget: "R$ 8.000", spent: "R$ 8.000", status: "paused", results: "1.2M alcance" },
-  { id: "4", name: "Remarketing Carrinho", objective: "Conversões", adAccount: "Conta E-commerce", budget: "R$ 3.000", spent: "R$ 1.850", status: "active", results: "89 vendas" },
-  { id: "5", name: "Teste Criativo", objective: "Engajamento", adAccount: "Conta Teste", budget: "R$ 500", spent: "R$ 0", status: "error", results: "-" },
-];
+const formatBudget = (cents: number | null) => {
+  if (!cents) return "-";
+  return `R$ ${(cents / 100).toFixed(2)}`;
+};
 
-const columns = [
-  { key: "name", header: "Campanha" },
-  { key: "objective", header: "Objetivo" },
-  { key: "adAccount", header: "Conta" },
-  { key: "budget", header: "Orçamento" },
-  { key: "spent", header: "Gasto" },
-  { key: "results", header: "Resultados" },
-  { 
-    key: "status", 
-    header: "Status",
-    render: (campaign: Campaign) => <StatusBadge status={campaign.status} />
-  },
-  {
-    key: "actions",
-    header: "",
-    render: () => (
-      <Button variant="ghost" size="sm">
-        <MoreHorizontal className="w-4 h-4" />
-      </Button>
-    )
+const getSyncBadge = (sync_status: string) => {
+  switch (sync_status) {
+    case "synced":
+      return <Badge variant="default">Sincronizado</Badge>;
+    case "syncing":
+      return <Badge variant="secondary">Sincronizando...</Badge>;
+    case "error":
+      return <Badge variant="destructive">Erro</Badge>;
+    default:
+      return <Badge variant="outline">Pendente</Badge>;
   }
-];
+};
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "ACTIVE":
+      return <Badge className="bg-green-500">Ativo</Badge>;
+    case "PAUSED":
+      return <Badge variant="secondary">Pausado</Badge>;
+    case "DRAFT":
+      return <Badge variant="outline">Rascunho</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+};
 
 export default function CampaignsPage() {
+  const { data: campaigns, isLoading } = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("*, ad_accounts(account_name)")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data as Campaign[];
+    },
+  });
+
+  const columns = [
+    { key: "name", header: "Campanha" },
+    { key: "objective", header: "Objetivo" },
+    {
+      key: "ad_account",
+      header: "Conta",
+      render: (campaign: Campaign) => campaign.ad_accounts?.account_name || "-",
+    },
+    {
+      key: "daily_budget",
+      header: "Orçamento Diário",
+      render: (campaign: Campaign) => formatBudget(campaign.daily_budget),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (campaign: Campaign) => getStatusBadge(campaign.status),
+    },
+    {
+      key: "sync_status",
+      header: "Sincronização",
+      render: (campaign: Campaign) => getSyncBadge(campaign.sync_status),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: () => (
+        <Button variant="ghost" size="sm">
+          <MoreHorizontal className="w-4 h-4" />
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="animate-fade-in">
-      <PageHeader 
-        title="Campanhas" 
+      <PageHeader
+        title="Campanhas"
         description="Gerencie suas campanhas de anúncio"
         action={
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Campanha
+          <Button asChild>
+            <Link to="/campaigns/create">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Campanha
+            </Link>
           </Button>
         }
       />
-      <DataTable columns={columns} data={mockCampaigns} />
+
+      {isLoading ? (
+        <div className="flex items-center justify-center p-8">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+        </div>
+      ) : (
+        <DataTable columns={columns} data={campaigns || []} />
+      )}
     </div>
   );
 }
