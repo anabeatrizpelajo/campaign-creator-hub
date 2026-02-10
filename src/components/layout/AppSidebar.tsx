@@ -1,15 +1,16 @@
-import { 
-  LayoutDashboard, 
-  Users, 
-  Facebook, 
-  Building2, 
-  CreditCard, 
-  Megaphone, 
-  Layers, 
+import {
+  LayoutDashboard,
+  Users,
+  Facebook,
+  Building2,
+  CreditCard,
+  Megaphone,
+  Layers,
   FileImage,
   Settings,
   Zap,
-  Copy
+  Copy,
+  Crosshair
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Campanhas", url: "/campaigns", icon: Megaphone },
   { title: "Conjuntos de Anúncios", url: "/ad-sets", icon: Layers },
   { title: "Anúncios", url: "/ads", icon: FileImage },
+  { title: "Pixels", url: "/pixels", icon: Crosshair },
 ];
 
 const automationItems = [
@@ -69,8 +71,8 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
+                    <NavLink
+                      to={item.url}
                       end={item.url === "/"}
                       className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"
@@ -94,7 +96,7 @@ export function AppSidebar() {
               {automationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
+                    <NavLink
                       to={item.url}
                       className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"

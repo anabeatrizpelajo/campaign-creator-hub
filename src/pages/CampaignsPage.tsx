@@ -34,6 +34,7 @@ interface Campaign {
   status: string;
   sync_status: string;
   daily_budget: number | null;
+  bid_strategy: string | null;
   facebook_campaign_id: string | null;
   ad_account_id: string;
   ad_accounts: {
@@ -56,6 +57,15 @@ const formatObjective = (objective: string) => {
     OUTCOME_SALES: "Vendas",
   };
   return objectives[objective] || objective;
+};
+
+const formatBidStrategy = (strategy: string | null) => {
+  const strategies: Record<string, string> = {
+    LOWEST_COST_WITHOUT_CAP: "Volume Mais Alto",
+    LOWEST_COST_WITH_BID_CAP: "Limite de Lance",
+    COST_CAP: "Custo por Resultado",
+  };
+  return strategy ? (strategies[strategy] || strategy) : "-";
 };
 
 const getSyncBadge = (sync_status: string) => {
@@ -252,6 +262,11 @@ export default function CampaignsPage() {
       key: "daily_budget",
       header: "Orçamento Diário",
       render: (campaign: Campaign) => formatBudget(campaign.daily_budget),
+    },
+    {
+      key: "bid_strategy",
+      header: "Estratégia de Lance",
+      render: (campaign: Campaign) => formatBidStrategy(campaign.bid_strategy),
     },
     {
       key: "status",

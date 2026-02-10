@@ -17,6 +17,7 @@ import CreateCampaignPage from "./pages/CreateCampaignPage";
 import EditCampaignPage from "./pages/EditCampaignPage";
 import AdSetsPage from "./pages/AdSetsPage";
 import AdsPage from "./pages/AdsPage";
+import PixelsPage from "./pages/PixelsPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
@@ -64,6 +65,7 @@ const App = () => (
                       <Route path="/campaigns/:id/edit" element={<EditCampaignPage />} />
                       <Route path="/ad-sets" element={<AdSetsPage />} />
                       <Route path="/ads" element={<AdsPage />} />
+                      <Route path="/pixels" element={<PixelsPage />} />
                       <Route path="/automations" element={<AutomationsPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
                       <Route path="*" element={<NotFound />} />

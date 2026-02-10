@@ -49,6 +49,7 @@ export default function CreateCampaignPage() {
         name: "",
         objective: "",
         daily_budget: "",
+        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
     });
 
     // Fetch ad accounts for selection
@@ -95,6 +96,7 @@ export default function CreateCampaignPage() {
                         name: formData.name,
                         objective: formData.objective,
                         daily_budget: Math.round(parseFloat(formData.daily_budget) * 100),
+                        bid_strategy: formData.bid_strategy,
                         status: "DRAFT",
                         sync_status: "pending",
                     })
@@ -275,6 +277,31 @@ export default function CreateCampaignPage() {
                                 O orçamento deve ser no mínimo R$ {minBudget.toFixed(2)}
                             </p>
                         )}
+                    </div>
+
+                    {/* Bid Strategy */}
+                    <div className="space-y-2">
+                        <Label>Estratégia de Lance</Label>
+                        <Select
+                            value={formData.bid_strategy}
+                            onValueChange={(value) =>
+                                setFormData({ ...formData, bid_strategy: value })
+                            }
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="LOWEST_COST_WITHOUT_CAP">Volume Mais Alto</SelectItem>
+                                <SelectItem value="LOWEST_COST_WITH_BID_CAP">Limite de Lance</SelectItem>
+                                <SelectItem value="COST_CAP">Custo por Resultado</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {formData.bid_strategy === "LOWEST_COST_WITHOUT_CAP" && "O Meta busca o maior volume de resultados pelo menor custo."}
+                            {formData.bid_strategy === "LOWEST_COST_WITH_BID_CAP" && "Define um lance máximo por resultado (bid_amount obrigatório no ad set)."}
+                            {formData.bid_strategy === "COST_CAP" && "Define um custo-alvo médio por resultado (bid_amount obrigatório no ad set)."}
+                        </p>
                     </div>
 
                     {/* Submit Button */}
