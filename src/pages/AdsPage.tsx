@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, MoreHorizontal, RefreshCw, Trash2, Video } from "lucide-react";
+import { Plus, MoreHorizontal, RefreshCw, Trash2, Video, FolderOpen } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -43,9 +43,15 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface Campaign {
+  id: string;
+  name: string;
+}
+
 interface AdSet {
   id: string;
   name: string;
+  campaign_id: string;
 }
 
 interface Ad {
@@ -61,7 +67,7 @@ interface Ad {
   video_facebook_id: string | null;
   facebook_ad_id: string | null;
   sync_status: string;
-  ad_sets: { name: string } | null;
+  ad_sets: { name: string; campaigns: { name: string } | null } | null;
 }
 
 const CTA_OPTIONS = [
@@ -86,49 +92,84 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+const getSyncBadge = (status: string) => {
+  switch (status) {
+    case "synced":
+      return <Badge className="bg-green-600">Sincronizado</Badge>;
+    case "pending":
+      return <Badge className="bg-blue-500">Pendente</Badge>;
+    case "processing":
+      return <Badge className="bg-yellow-500 text-black">Processando</Badge>;
+    case "error":
+      return <Badge className="bg-red-500">Erro</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+};
+
 export default function AdsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [newAd, setNewAd] = useState({
     ad_set_id: "",
     name: "",
     headline: "",
     primary_text: "",
-    call_to_action: "LEARN_MORE",
+    call_to_action: "SHOP_NOW",
     link_url: "",
     video_drive_url: "",
   });
 
-  const { data: adSets } = useQuery({
+  // Fetch campaigns for the filter
+  const { data: campaigns } = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data as Campaign[];
+    },
+  });
+
+  // Fetch all ad sets
+  const { data: allAdSets } = useQuery({
     queryKey: ["ad_sets"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ad_sets")
-        .select("id, name")
+        .select("id, name, campaign_id")
         .order("name");
       if (error) throw error;
       return data as AdSet[];
     },
   });
 
+  // Filter ad sets by selected campaign
+  const filteredAdSets = selectedCampaignId
+    ? allAdSets?.filter((as) => as.campaign_id === selectedCampaignId)
+    : allAdSets;
+
   const { data: ads, isLoading } = useQuery({
     queryKey: ["ads"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ads")
-        .select("*, ad_sets(name)")
+        .select("*, ad_sets(name, campaigns(name))")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as Ad[];
+      return data as unknown as Ad[];
     },
   });
 
   const addAdMutation = useMutation({
     mutationFn: async (ad: typeof newAd) => {
-      const { error } = await supabase.from("ads").insert({
+      const { data, error } = await supabase.from("ads").insert({
         ad_set_id: ad.ad_set_id,
         name: ad.name,
         headline: ad.headline || null,
@@ -136,22 +177,44 @@ export default function AdsPage() {
         call_to_action: ad.call_to_action,
         link_url: ad.link_url || null,
         video_drive_url: ad.video_drive_url || null,
-      });
+      }).select().single();
       if (error) throw error;
+
+      // Send webhook to n8n
+      try {
+        await fetch("https://webhook2.uvepom.com/webhook/create-ad", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ad_id: data.id,
+            ad_set_id: ad.ad_set_id,
+            campaign_id: selectedCampaignId,
+            name: ad.name,
+            headline: ad.headline || null,
+            primary_text: ad.primary_text || null,
+            call_to_action: ad.call_to_action,
+            link_url: ad.link_url || null,
+            video_drive_url: ad.video_drive_url || null,
+          }),
+        });
+      } catch (e) {
+        console.error("Webhook error:", e);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ads"] });
       setIsDialogOpen(false);
+      setSelectedCampaignId("");
       setNewAd({
         ad_set_id: "",
         name: "",
         headline: "",
         primary_text: "",
-        call_to_action: "LEARN_MORE",
+        call_to_action: "SHOP_NOW",
         link_url: "",
         video_drive_url: "",
       });
-      toast({ title: "Anúncio criado!" });
+      toast({ title: "Anúncio criado! O vídeo será processado pelo n8n." });
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Erro", description: error.message });
@@ -172,27 +235,34 @@ export default function AdsPage() {
   const columns = [
     { key: "name", header: "Anúncio" },
     {
+      key: "campaign",
+      header: "Campanha",
+      render: (ad: Ad) => ad.ad_sets?.campaigns?.name || "-",
+    },
+    {
       key: "ad_set",
       header: "Conjunto",
       render: (ad: Ad) => ad.ad_sets?.name || "-",
     },
     {
-      key: "headline",
-      header: "Título",
-      render: (ad: Ad) => ad.headline || "-",
-    },
-    {
       key: "video",
-      header: "Vídeo",
+      header: "Drive",
       render: (ad: Ad) =>
         ad.video_drive_url ? (
-          <Badge variant="outline" className="gap-1">
-            <Video className="w-3 h-3" />
-            Drive
-          </Badge>
+          <a href={ad.video_drive_url} target="_blank" rel="noopener noreferrer">
+            <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent">
+              <FolderOpen className="w-3 h-3" />
+              Pasta
+            </Badge>
+          </a>
         ) : (
           "-"
         ),
+    },
+    {
+      key: "sync_status",
+      header: "Sincronização",
+      render: (ad: Ad) => getSyncBadge(ad.sync_status),
     },
     {
       key: "status",
@@ -242,9 +312,23 @@ export default function AdsPage() {
     <div className="animate-fade-in">
       <PageHeader
         title="Anúncios"
-        description="Gerencie seus anúncios criativos"
+        description="Crie anúncios com vídeos do Google Drive"
         action={
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setSelectedCampaignId("");
+              setNewAd({
+                ad_set_id: "",
+                name: "",
+                headline: "",
+                primary_text: "",
+                call_to_action: "SHOP_NOW",
+                link_url: "",
+                video_drive_url: "",
+              });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -257,16 +341,38 @@ export default function AdsPage() {
               </DialogHeader>
               <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
                 <div>
+                  <Label>Campanha *</Label>
+                  <Select
+                    value={selectedCampaignId}
+                    onValueChange={(value) => {
+                      setSelectedCampaignId(value);
+                      setNewAd({ ...newAd, ad_set_id: "" });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma campanha" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campaigns?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label>Conjunto de Anúncios *</Label>
                   <Select
                     value={newAd.ad_set_id}
                     onValueChange={(value) => setNewAd({ ...newAd, ad_set_id: value })}
+                    disabled={!selectedCampaignId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um conjunto" />
+                      <SelectValue placeholder={selectedCampaignId ? "Selecione um conjunto" : "Selecione uma campanha primeiro"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {adSets?.map((as) => (
+                      {filteredAdSets?.map((as) => (
                         <SelectItem key={as.id} value={as.id}>
                           {as.name}
                         </SelectItem>
@@ -282,6 +388,18 @@ export default function AdsPage() {
                     value={newAd.name}
                     onChange={(e) => setNewAd({ ...newAd, name: e.target.value })}
                   />
+                </div>
+                <div>
+                  <Label htmlFor="video_drive_url">Link da Pasta do Google Drive *</Label>
+                  <Input
+                    id="video_drive_url"
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    value={newAd.video_drive_url}
+                    onChange={(e) => setNewAd({ ...newAd, video_drive_url: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cole o link da pasta do Drive com os vídeos. O n8n fará o download e upload para o Facebook.
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="headline">Título (Headline)</Label>
@@ -329,22 +447,10 @@ export default function AdsPage() {
                     onChange={(e) => setNewAd({ ...newAd, link_url: e.target.value })}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="video_drive_url">URL do Vídeo (Google Drive)</Label>
-                  <Input
-                    id="video_drive_url"
-                    placeholder="https://drive.google.com/file/d/..."
-                    value={newAd.video_drive_url}
-                    onChange={(e) => setNewAd({ ...newAd, video_drive_url: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Cole o link de compartilhamento do Drive
-                  </p>
-                </div>
                 <Button
                   className="w-full"
                   onClick={() => addAdMutation.mutate(newAd)}
-                  disabled={!newAd.ad_set_id || !newAd.name || addAdMutation.isPending}
+                  disabled={!newAd.ad_set_id || !newAd.name || !newAd.video_drive_url || addAdMutation.isPending}
                 >
                   {addAdMutation.isPending ? "Criando..." : "Criar Anúncio"}
                 </Button>
