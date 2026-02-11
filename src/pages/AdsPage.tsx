@@ -129,7 +129,6 @@ export default function AdsPage() {
   const addAdMutation = useMutation({
     mutationFn: async (ad: typeof newAd) => {
       const { error } = await supabase.from("ads").insert({
-        user_id: user?.id,
         ad_set_id: ad.ad_set_id,
         name: ad.name,
         headline: ad.headline || null,

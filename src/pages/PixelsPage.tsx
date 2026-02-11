@@ -94,7 +94,6 @@ export default function PixelsPage() {
     const addPixelMutation = useMutation({
         mutationFn: async (pixel: typeof newPixel) => {
             const { error } = await supabase.from("pixels").insert({
-                user_id: user?.id,
                 business_manager_id: pixel.business_manager_id,
                 name: pixel.name,
                 pixel_id: pixel.pixel_id,

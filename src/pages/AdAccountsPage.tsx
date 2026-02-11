@@ -96,7 +96,6 @@ export default function AdAccountsPage() {
   const addAccountMutation = useMutation({
     mutationFn: async (account: typeof newAccount) => {
       const { error } = await supabase.from("ad_accounts").insert({
-        user_id: user?.id,
         account_id: account.account_id,
         account_name: account.account_name,
         business_manager_id: account.business_manager_id || null,

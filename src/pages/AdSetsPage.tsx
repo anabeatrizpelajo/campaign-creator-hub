@@ -154,7 +154,6 @@ export default function AdSetsPage() {
       const countriesArray = adSet.countries.split(",").map(c => c.trim().toUpperCase()).filter(Boolean);
 
       const { data, error } = await supabase.from("ad_sets").insert({
-        user_id: user?.id,
         campaign_id: adSet.campaign_id,
         name: adSet.name,
         age_min: parseInt(adSet.age_min),

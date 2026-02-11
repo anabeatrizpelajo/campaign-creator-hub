@@ -91,7 +91,6 @@ export default function CreateCampaignPage() {
                 const { data: campaign, error } = await supabase
                     .from("campaigns")
                     .insert({
-                        user_id: user?.id,
                         ad_account_id: accountId,
                         name: formData.name,
                         objective: formData.objective,
