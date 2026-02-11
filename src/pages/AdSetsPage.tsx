@@ -106,6 +106,9 @@ export default function AdSetsPage() {
     genders: "0",
     countries: "BR",
     pixel_id: "",
+    billing_event: "IMPRESSIONS",
+    optimization_goal: "OFFSITE_CONVERSIONS",
+    bid_strategy: "LOWEST_COST_WITHOUT_CAP",
   });
 
   const { data: campaigns } = useQuery({
@@ -177,9 +180,9 @@ export default function AdSetsPage() {
             age_max: parseInt(adSet.age_max),
             genders: gendersArray,
             countries: countriesArray,
-            billing_event: "IMPRESSIONS",
-            optimization_goal: "OFFSITE_CONVERSIONS",
-            bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+            billing_event: adSet.billing_event,
+            optimization_goal: adSet.optimization_goal,
+            bid_strategy: adSet.bid_strategy,
             promoted_object: selectedPixel ? {
               pixel_id: selectedPixel.pixel_id,
               custom_event_type: "PURCHASE",
@@ -196,7 +199,7 @@ export default function AdSetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ad_sets"] });
       setIsDialogOpen(false);
-      setNewAdSet({ campaign_id: "", name: "", age_min: "18", age_max: "65", genders: "0", countries: "BR", pixel_id: "" });
+      setNewAdSet({ campaign_id: "", name: "", age_min: "18", age_max: "65", genders: "0", countries: "BR", pixel_id: "", billing_event: "IMPRESSIONS", optimization_goal: "OFFSITE_CONVERSIONS", bid_strategy: "LOWEST_COST_WITHOUT_CAP" });
       toast({ title: "Conjunto criado!" });
     },
     onError: (error: any) => {
@@ -389,13 +392,58 @@ export default function AdSetsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Configurações fixas:</p>
-                  <p>• Billing Event: Impressões</p>
-                  <p>• Otimização: Conversões Offsite</p>
-                  <p>• Lance: Volume Mais Alto</p>
-                  <p>• Advantage Audience: Ativado</p>
-                  <p>• Evento: Purchase</p>
+                <div>
+                  <Label>Billing Event</Label>
+                  <Select
+                    value={newAdSet.billing_event}
+                    onValueChange={(value) => setNewAdSet({ ...newAdSet, billing_event: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IMPRESSIONS">Impressões</SelectItem>
+                      <SelectItem value="LINK_CLICKS">Cliques no Link</SelectItem>
+                      <SelectItem value="THRUPLAY">ThruPlay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Objetivo de Otimização</Label>
+                  <Select
+                    value={newAdSet.optimization_goal}
+                    onValueChange={(value) => setNewAdSet({ ...newAdSet, optimization_goal: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OFFSITE_CONVERSIONS">Conversões Offsite</SelectItem>
+                      <SelectItem value="CONVERSIONS">Conversões</SelectItem>
+                      <SelectItem value="LINK_CLICKS">Cliques no Link</SelectItem>
+                      <SelectItem value="IMPRESSIONS">Impressões</SelectItem>
+                      <SelectItem value="REACH">Alcance</SelectItem>
+                      <SelectItem value="LANDING_PAGE_VIEWS">Visualizações da Página</SelectItem>
+                      <SelectItem value="THRUPLAY">ThruPlay</SelectItem>
+                      <SelectItem value="VIDEO_VIEWS">Visualizações de Vídeo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Estratégia de Lance</Label>
+                  <Select
+                    value={newAdSet.bid_strategy}
+                    onValueChange={(value) => setNewAdSet({ ...newAdSet, bid_strategy: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LOWEST_COST_WITHOUT_CAP">Volume Mais Alto</SelectItem>
+                      <SelectItem value="LOWEST_COST_WITH_BID_CAP">Limite de Lance</SelectItem>
+                      <SelectItem value="COST_CAP">Custo por Resultado</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
                   className="w-full"
