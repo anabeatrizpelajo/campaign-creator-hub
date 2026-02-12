@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, MoreHorizontal, RefreshCw, Trash2, FolderOpen } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -135,6 +136,7 @@ const initialFormState = {
   website_id: "",
   utm_params: "",
   video_drive_url: "",
+  enable_multi_advertiser: false,
 };
 
 export default function AdsPage() {
@@ -223,12 +225,9 @@ export default function AdsPage() {
 
   const addAdMutation = useMutation({
     mutationFn: async (ad: typeof newAd) => {
-      // Build final link_url with UTMs
+      // Get website URL (without UTMs - UTMs go as url_tags)
       const selectedWebsite = websites?.find((w) => w.id === ad.website_id);
       const baseUrl = selectedWebsite?.url || "";
-      const finalUrl = ad.utm_params
-        ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}${ad.utm_params}`
-        : baseUrl;
 
       // Get selected page and instagram info
       const selectedPage = adPages?.find((p) => p.id === ad.ad_page_id);
@@ -243,7 +242,7 @@ export default function AdsPage() {
           name: ad.name,
           headline: ad.headline || null,
           call_to_action: ad.call_to_action,
-          link_url: finalUrl || null,
+          link_url: baseUrl || null,
           video_drive_url: ad.video_drive_url || null,
         })
         .select()
@@ -262,11 +261,12 @@ export default function AdsPage() {
             name: ad.name,
             headline: ad.headline || null,
             call_to_action: ad.call_to_action,
-            link_url: finalUrl || null,
+            link_url: baseUrl || null,
+            url_tags: ad.utm_params || null,
             page_id: selectedPage?.page_id || null,
             instagram_actor_id: selectedInsta?.instagram_actor_id || null,
             video_drive_url: ad.video_drive_url || null,
-            disable_ai_enhancements: true,
+            enable_multi_advertiser: ad.enable_multi_advertiser,
           }),
         });
       } catch (e) {
@@ -587,6 +587,29 @@ export default function AdsPage() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Parâmetros UTM serão adicionados à URL automaticamente.
                   </p>
+                </div>
+
+                {/* Configurações Avançadas */}
+                <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                  <p className="text-sm font-medium">Configurações Avançadas</p>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="enable_multi_advertiser" className="text-sm">
+                        Anunciar com vários anunciantes
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Seu anúncio pode aparecer junto a outros
+                      </p>
+                    </div>
+                    <Switch
+                      id="enable_multi_advertiser"
+                      checked={newAd.enable_multi_advertiser}
+                      onCheckedChange={(checked) =>
+                        setNewAd({ ...newAd, enable_multi_advertiser: checked })
+                      }
+                    />
+                  </div>
                 </div>
 
                 <Button
