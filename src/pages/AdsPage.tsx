@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, MoreHorizontal, RefreshCw, Trash2, Video, FolderOpen } from "lucide-react";
+import { Plus, MoreHorizontal, RefreshCw, Trash2, FolderOpen } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -38,7 +38,6 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +51,25 @@ interface AdSet {
   id: string;
   name: string;
   campaign_id: string;
+}
+
+interface AdPage {
+  id: string;
+  page_id: string;
+  name: string;
+}
+
+interface InstagramAccount {
+  id: string;
+  instagram_actor_id: string;
+  name: string;
+  ad_page_id: string | null;
+}
+
+interface Website {
+  id: string;
+  name: string;
+  url: string;
 }
 
 interface Ad {
@@ -107,23 +125,26 @@ const getSyncBadge = (status: string) => {
   }
 };
 
+const initialFormState = {
+  ad_set_id: "",
+  name: "",
+  headline: "",
+  call_to_action: "SHOP_NOW",
+  ad_page_id: "",
+  instagram_account_id: "",
+  website_id: "",
+  utm_params: "",
+  video_drive_url: "",
+};
+
 export default function AdsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
-  const [newAd, setNewAd] = useState({
-    ad_set_id: "",
-    name: "",
-    headline: "",
-    primary_text: "",
-    call_to_action: "SHOP_NOW",
-    link_url: "",
-    video_drive_url: "",
-  });
+  const [newAd, setNewAd] = useState(initialFormState);
 
-  // Fetch campaigns for the filter
   const { data: campaigns } = useQuery({
     queryKey: ["campaigns"],
     queryFn: async () => {
@@ -136,7 +157,6 @@ export default function AdsPage() {
     },
   });
 
-  // Fetch all ad sets
   const { data: allAdSets } = useQuery({
     queryKey: ["ad_sets"],
     queryFn: async () => {
@@ -149,7 +169,42 @@ export default function AdsPage() {
     },
   });
 
-  // Filter ad sets by selected campaign
+  const { data: adPages } = useQuery({
+    queryKey: ["ad_pages"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ad_pages")
+        .select("id, page_id, name")
+        .order("name");
+      if (error) throw error;
+      return data as AdPage[];
+    },
+  });
+
+  const { data: instagramAccounts } = useQuery({
+    queryKey: ["instagram_accounts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("instagram_accounts")
+        .select("id, instagram_actor_id, name, ad_page_id")
+        .order("name");
+      if (error) throw error;
+      return data as InstagramAccount[];
+    },
+  });
+
+  const { data: websites } = useQuery({
+    queryKey: ["websites"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("websites")
+        .select("id, name, url")
+        .order("name");
+      if (error) throw error;
+      return data as Website[];
+    },
+  });
+
   const filteredAdSets = selectedCampaignId
     ? allAdSets?.filter((as) => as.campaign_id === selectedCampaignId)
     : allAdSets;
@@ -161,7 +216,6 @@ export default function AdsPage() {
         .from("ads")
         .select("*, ad_sets(name, campaigns(name))")
         .order("created_at", { ascending: false });
-
       if (error) throw error;
       return data as unknown as Ad[];
     },
@@ -169,15 +223,31 @@ export default function AdsPage() {
 
   const addAdMutation = useMutation({
     mutationFn: async (ad: typeof newAd) => {
-      const { data, error } = await supabase.from("ads").insert({
-        ad_set_id: ad.ad_set_id,
-        name: ad.name,
-        headline: ad.headline || null,
-        primary_text: ad.primary_text || null,
-        call_to_action: ad.call_to_action,
-        link_url: ad.link_url || null,
-        video_drive_url: ad.video_drive_url || null,
-      }).select().single();
+      // Build final link_url with UTMs
+      const selectedWebsite = websites?.find((w) => w.id === ad.website_id);
+      const baseUrl = selectedWebsite?.url || "";
+      const finalUrl = ad.utm_params
+        ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}${ad.utm_params}`
+        : baseUrl;
+
+      // Get selected page and instagram info
+      const selectedPage = adPages?.find((p) => p.id === ad.ad_page_id);
+      const selectedInsta = instagramAccounts?.find(
+        (i) => i.id === ad.instagram_account_id
+      );
+
+      const { data, error } = await supabase
+        .from("ads")
+        .insert({
+          ad_set_id: ad.ad_set_id,
+          name: ad.name,
+          headline: ad.headline || null,
+          call_to_action: ad.call_to_action,
+          link_url: finalUrl || null,
+          video_drive_url: ad.video_drive_url || null,
+        })
+        .select()
+        .single();
       if (error) throw error;
 
       // Send webhook to n8n
@@ -191,10 +261,12 @@ export default function AdsPage() {
             campaign_id: selectedCampaignId,
             name: ad.name,
             headline: ad.headline || null,
-            primary_text: ad.primary_text || null,
             call_to_action: ad.call_to_action,
-            link_url: ad.link_url || null,
+            link_url: finalUrl || null,
+            page_id: selectedPage?.page_id || null,
+            instagram_actor_id: selectedInsta?.instagram_actor_id || null,
             video_drive_url: ad.video_drive_url || null,
+            disable_ai_enhancements: true,
           }),
         });
       } catch (e) {
@@ -205,19 +277,15 @@ export default function AdsPage() {
       queryClient.invalidateQueries({ queryKey: ["ads"] });
       setIsDialogOpen(false);
       setSelectedCampaignId("");
-      setNewAd({
-        ad_set_id: "",
-        name: "",
-        headline: "",
-        primary_text: "",
-        call_to_action: "SHOP_NOW",
-        link_url: "",
-        video_drive_url: "",
-      });
+      setNewAd(initialFormState);
       toast({ title: "Anúncio criado! O vídeo será processado pelo n8n." });
     },
     onError: (error: any) => {
-      toast({ variant: "destructive", title: "Erro", description: error.message });
+      toast({
+        variant: "destructive",
+        title: "Erro",
+        description: error.message,
+      });
     },
   });
 
@@ -314,21 +382,16 @@ export default function AdsPage() {
         title="Anúncios"
         description="Crie anúncios com vídeos do Google Drive"
         action={
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) {
-              setSelectedCampaignId("");
-              setNewAd({
-                ad_set_id: "",
-                name: "",
-                headline: "",
-                primary_text: "",
-                call_to_action: "SHOP_NOW",
-                link_url: "",
-                video_drive_url: "",
-              });
-            }
-          }}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setSelectedCampaignId("");
+                setNewAd(initialFormState);
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -340,6 +403,7 @@ export default function AdsPage() {
                 <DialogTitle>Criar Anúncio</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
+                {/* Campanha */}
                 <div>
                   <Label>Campanha *</Label>
                   <Select
@@ -361,6 +425,8 @@ export default function AdsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Conjunto de Anúncios */}
                 <div>
                   <Label>Conjunto de Anúncios *</Label>
                   <Select
@@ -369,7 +435,13 @@ export default function AdsPage() {
                     disabled={!selectedCampaignId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={selectedCampaignId ? "Selecione um conjunto" : "Selecione uma campanha primeiro"} />
+                      <SelectValue
+                        placeholder={
+                          selectedCampaignId
+                            ? "Selecione um conjunto"
+                            : "Selecione uma campanha primeiro"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredAdSets?.map((as) => (
@@ -380,6 +452,53 @@ export default function AdsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Página de Anúncio (Facebook) */}
+                <div>
+                  <Label>Página de Anúncio (Facebook) *</Label>
+                  <Select
+                    value={newAd.ad_page_id}
+                    onValueChange={(value) => setNewAd({ ...newAd, ad_page_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma página" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {adPages?.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          📘 {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Conta Instagram */}
+                <div>
+                  <Label>Conta Instagram</Label>
+                  <Select
+                    value={newAd.instagram_account_id}
+                    onValueChange={(value) =>
+                      setNewAd({ ...newAd, instagram_account_id: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Nenhuma (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {instagramAccounts?.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          📸 {i.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Opcional. Para veicular o anúncio também no Instagram.
+                  </p>
+                </div>
+
+                {/* Nome do Anúncio */}
                 <div>
                   <Label htmlFor="name">Nome do Anúncio *</Label>
                   <Input
@@ -389,20 +508,23 @@ export default function AdsPage() {
                     onChange={(e) => setNewAd({ ...newAd, name: e.target.value })}
                   />
                 </div>
+
+                {/* Pasta do Drive */}
                 <div>
                   <Label htmlFor="video_drive_url">Link da Pasta do Google Drive *</Label>
                   <Input
                     id="video_drive_url"
                     placeholder="https://drive.google.com/drive/folders/..."
                     value={newAd.video_drive_url}
-                    onChange={(e) => setNewAd({ ...newAd, video_drive_url: e.target.value })}
+                    onChange={(e) =>
+                      setNewAd({ ...newAd, video_drive_url: e.target.value })
+                    }
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Cole o link da pasta do Drive com os vídeos. O n8n fará o download e upload para o Facebook.
-                  </p>
                 </div>
+
+                {/* Título */}
                 <div>
-                  <Label htmlFor="headline">Título (Headline)</Label>
+                  <Label htmlFor="headline">Título *</Label>
                   <Input
                     id="headline"
                     placeholder="Ex: Oferta Imperdível!"
@@ -410,20 +532,15 @@ export default function AdsPage() {
                     onChange={(e) => setNewAd({ ...newAd, headline: e.target.value })}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="primary_text">Texto Principal</Label>
-                  <Textarea
-                    id="primary_text"
-                    placeholder="Descrição do anúncio..."
-                    value={newAd.primary_text}
-                    onChange={(e) => setNewAd({ ...newAd, primary_text: e.target.value })}
-                  />
-                </div>
+
+                {/* CTA */}
                 <div>
                   <Label>Call to Action</Label>
                   <Select
                     value={newAd.call_to_action}
-                    onValueChange={(value) => setNewAd({ ...newAd, call_to_action: value })}
+                    onValueChange={(value) =>
+                      setNewAd({ ...newAd, call_to_action: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -437,20 +554,52 @@ export default function AdsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Website */}
                 <div>
-                  <Label htmlFor="link_url">URL de Destino</Label>
-                  <Input
-                    id="link_url"
-                    type="url"
-                    placeholder="https://seusite.com/oferta"
-                    value={newAd.link_url}
-                    onChange={(e) => setNewAd({ ...newAd, link_url: e.target.value })}
-                  />
+                  <Label>Site de Destino *</Label>
+                  <Select
+                    value={newAd.website_id}
+                    onValueChange={(value) => setNewAd({ ...newAd, website_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {websites?.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name} ({w.url})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {/* UTMs */}
+                <div>
+                  <Label htmlFor="utm_params">UTMs</Label>
+                  <Input
+                    id="utm_params"
+                    placeholder="utm_source=fb&utm_medium=cpc&utm_campaign=promo"
+                    value={newAd.utm_params}
+                    onChange={(e) => setNewAd({ ...newAd, utm_params: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Parâmetros UTM serão adicionados à URL automaticamente.
+                  </p>
+                </div>
+
                 <Button
                   className="w-full"
                   onClick={() => addAdMutation.mutate(newAd)}
-                  disabled={!newAd.ad_set_id || !newAd.name || !newAd.video_drive_url || addAdMutation.isPending}
+                  disabled={
+                    !newAd.ad_set_id ||
+                    !newAd.name ||
+                    !newAd.video_drive_url ||
+                    !newAd.ad_page_id ||
+                    !newAd.website_id ||
+                    addAdMutation.isPending
+                  }
                 >
                   {addAdMutation.isPending ? "Criando..." : "Criar Anúncio"}
                 </Button>
