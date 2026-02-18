@@ -20,6 +20,7 @@ import AdsPage from "./pages/AdsPage";
 import PixelsPage from "./pages/PixelsPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import SettingsPage from "./pages/SettingsPage";
+import BulkCreationPage from "./pages/BulkCreationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +69,7 @@ const App = () => (
                       <Route path="/pixels" element={<PixelsPage />} />
                       <Route path="/automations" element={<AutomationsPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
+                      <Route path="/bulk" element={<BulkCreationPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </MainLayout>

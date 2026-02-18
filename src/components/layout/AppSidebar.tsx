@@ -10,7 +10,8 @@ import {
   Settings,
   Zap,
   Copy,
-  Crosshair
+  Crosshair,
+  Rocket
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -37,6 +38,7 @@ const menuItems = [
   { title: "Conjuntos de Anúncios", url: "/ad-sets", icon: Layers },
   { title: "Anúncios", url: "/ads", icon: FileImage },
   { title: "Pixels", url: "/pixels", icon: Crosshair },
+  { title: "Criação em Massa", url: "/bulk", icon: Rocket },
 ];
 
 const automationItems = [
