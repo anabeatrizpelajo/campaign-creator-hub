@@ -217,7 +217,8 @@ export default function BulkCreationPage() {
                             if (adError) throw adError;
 
                             webhookAds.push({
-                                ad_id: ad.id, name: adName,
+                                ad_id: ad.id, adset_id: adSet.id, campaign_id: campaign.id,
+                                name: adName,
                                 headline: adConfig.headline || null,
                                 call_to_action: adConfig.call_to_action,
                                 page_id: selectedPage?.page_id || null,
