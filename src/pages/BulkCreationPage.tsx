@@ -33,7 +33,7 @@ const CTA_OPTIONS = [
     { value: "DOWNLOAD", label: "Baixar" },
     { value: "WATCH_MORE", label: "Assistir" },
 ];
-const STEPS = ["Criativos", "Campanhas", "Conjuntos", "Revisão"];
+const STEPS = ["Criativos", "Conjuntos", "Campanhas", "Revisão"];
 
 interface AdAccount { id: string; account_id: string; account_name: string; }
 interface Pixel { id: string; name: string; pixel_id: string; }
@@ -334,8 +334,8 @@ export default function BulkCreationPage() {
 
     const canGoNext = () => {
         if (step === 0) return selectedFiles.length > 0 && adConfig.ad_page_id && adConfig.website_id;
-        if (step === 1) return selectedCampaignIds.length > 0 || (createNewCampaigns && selectedAccounts.length > 0 && newCampaignConfig.name);
-        if (step === 2) return adSetConfig.name && adSetConfig.countries;
+        if (step === 1) return adSetConfig.name && adSetConfig.countries;
+        if (step === 2) return selectedCampaignIds.length > 0 || (createNewCampaigns && selectedAccounts.length > 0 && newCampaignConfig.name);
         return true;
     };
 
@@ -471,7 +471,7 @@ export default function BulkCreationPage() {
     );
 
     // ════════════════════════════════════════
-    // Step 1: Campanhas
+    // Step 1: Conjuntos
     // ════════════════════════════════════════
     const renderStep1 = () => (
         <div className="space-y-6">
@@ -562,7 +562,7 @@ export default function BulkCreationPage() {
     );
 
     // ════════════════════════════════════════
-    // Step 2: Conjuntos
+    // Step 2: Campanhas
     // ════════════════════════════════════════
     const renderStep2 = () => (
         <div className="space-y-6"><Card>
@@ -662,7 +662,7 @@ export default function BulkCreationPage() {
         );
     };
 
-    const renderCurrentStep = () => { switch (step) { case 0: return renderStep0(); case 1: return renderStep1(); case 2: return renderStep2(); case 3: return renderStep3(); default: return null; } };
+    const renderCurrentStep = () => { switch (step) { case 0: return renderStep0(); case 1: return renderStep2(); case 2: return renderStep1(); case 3: return renderStep3(); default: return null; } };
 
     return (
         <div className="animate-fade-in max-w-4xl mx-auto">
