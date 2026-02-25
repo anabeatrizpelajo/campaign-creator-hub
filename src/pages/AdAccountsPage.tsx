@@ -194,78 +194,7 @@ export default function AdAccountsPage() {
     <div className="animate-fade-in">
       <PageHeader
         title="Contas de Anúncio"
-        description="Gerencie suas contas de anúncio do Facebook Ads"
-        action={
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Conta
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Adicionar Conta de Anúncio</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div>
-                  <Label>Business Manager *</Label>
-                  <Select
-                    value={newAccount.business_manager_id}
-                    onValueChange={(value) =>
-                      setNewAccount({ ...newAccount, business_manager_id: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma BM" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {businessManagers?.map((bm) => (
-                        <SelectItem key={bm.id} value={bm.id}>
-                          {bm.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="account_name">Nome da Conta *</Label>
-                  <Input
-                    id="account_name"
-                    placeholder="Ex: Conta Principal"
-                    value={newAccount.account_name}
-                    onChange={(e) =>
-                      setNewAccount({ ...newAccount, account_name: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="account_id">ID da Conta (act_XXXXX) *</Label>
-                  <Input
-                    id="account_id"
-                    placeholder="act_123456789"
-                    value={newAccount.account_id}
-                    onChange={(e) =>
-                      setNewAccount({ ...newAccount, account_id: e.target.value })
-                    }
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={() => addAccountMutation.mutate(newAccount)}
-                  disabled={
-                    !newAccount.account_id ||
-                    !newAccount.account_name ||
-                    !newAccount.business_manager_id ||
-                    addAccountMutation.isPending
-                  }
-                >
-                  {addAccountMutation.isPending ? "Salvando..." : "Salvar Conta"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        }
+        description="Visualize suas contas de anúncio do Facebook Ads"
       />
 
       {isLoading ? (

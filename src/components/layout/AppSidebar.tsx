@@ -1,7 +1,5 @@
 import {
   LayoutDashboard,
-  Users,
-  Facebook,
   Building2,
   CreditCard,
   Megaphone,
@@ -10,7 +8,6 @@ import {
   Settings,
   Zap,
   Copy,
-  Crosshair,
   Rocket,
   LogOut,
 } from "lucide-react";
@@ -32,16 +29,13 @@ import {
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Templates", url: "/templates", icon: Copy },
-  { title: "Usuários", url: "/users", icon: Users },
-  { title: "Perfis Facebook", url: "/profiles", icon: Facebook },
   { title: "Business Managers", url: "/business-managers", icon: Building2 },
   { title: "Contas de Anúncio", url: "/ad-accounts", icon: CreditCard },
   { title: "Campanhas", url: "/campaigns", icon: Megaphone },
   { title: "Conjuntos de Anúncios", url: "/ad-sets", icon: Layers },
   { title: "Anúncios", url: "/ads", icon: FileImage },
-  { title: "Pixels", url: "/pixels", icon: Crosshair },
   { title: "Criação em Massa", url: "/bulk", icon: Rocket },
+  { title: "Templates", url: "/templates", icon: Copy },
 ];
 
 const automationItems = [

@@ -57,8 +57,7 @@ const App = () => (
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/templates" element={<TemplatesPage />} />
-                      <Route path="/users" element={<UsersPage />} />
-                      <Route path="/profiles" element={<ProfilesPage />} />
+
                       <Route path="/business-managers" element={<BusinessManagersPage />} />
                       <Route path="/ad-accounts" element={<AdAccountsPage />} />
                       <Route path="/campaigns" element={<CampaignsPage />} />
@@ -66,7 +65,6 @@ const App = () => (
                       <Route path="/campaigns/:id/edit" element={<EditCampaignPage />} />
                       <Route path="/ad-sets" element={<AdSetsPage />} />
                       <Route path="/ads" element={<AdsPage />} />
-                      <Route path="/pixels" element={<PixelsPage />} />
                       <Route path="/automations" element={<AutomationsPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
                       <Route path="/bulk" element={<BulkCreationPage />} />
