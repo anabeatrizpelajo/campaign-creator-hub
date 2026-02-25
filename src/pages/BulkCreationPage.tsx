@@ -303,6 +303,7 @@ export default function BulkCreationPage() {
                                 call_to_action: adConfig.call_to_action,
                                 page_id: selectedPage?.page_id || null,
                                 instagram_actor_id: selectedInsta?.instagram_actor_id || null,
+                                video_drive_id: file.driveFileId,
                                 video_drive_url: driveUrl || null, video_file_name: file.fileName,
                                 link_url: baseUrl || null, url_tags: adConfig.utm_params || null,
                                 enable_multi_advertiser: adConfig.enable_multi_advertiser,
