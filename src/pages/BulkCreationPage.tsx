@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
     ArrowLeft, ArrowRight, Send, Loader2, ChevronRight,
-    Megaphone, Layers, FileImage, CheckCircle2, XCircle, FolderOpen,
+    Megaphone, Layers, FileImage, CheckCircle2, XCircle, FolderOpen, Save, FileStack,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +43,7 @@ interface Website { id: string; name: string; url: string; }
 interface DriveFile { name: string; id: string; mimeType: string; thumbnailLink: string | null; size: string | null; }
 interface SelectedFile { driveFileId: string; fileName: string; adName: string; adSetQty: number; }
 interface ExistingCampaign { id: string; name: string; objective: string; status: string; ad_account_id: string; }
+interface BulkTemplate { id: string; name: string; description: string | null; config: any; created_at: string; }
 
 const formatFileSize = (bytes: string | null) => {
     if (!bytes) return "";
@@ -50,7 +53,12 @@ const formatFileSize = (bytes: string | null) => {
 export default function BulkCreationPage() {
     const { user } = useAuth();
     const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [step, setStep] = useState(0);
+    const [showSaveDialog, setShowSaveDialog] = useState(false);
+    const [templateName, setTemplateName] = useState("");
+    const [templateDesc, setTemplateDesc] = useState("");
 
     // ── Drive ──
     const [driveUrl, setDriveUrl] = useState("");
@@ -100,6 +108,61 @@ export default function BulkCreationPage() {
     const { data: adPages } = useQuery({ queryKey: ["ad_pages"], queryFn: async () => { const { data, error } = await supabase.from("ad_pages").select("id, page_id, name"); if (error) throw error; return data as AdPage[]; } });
     const { data: instagramAccounts } = useQuery({ queryKey: ["instagram_accounts"], queryFn: async () => { const { data, error } = await supabase.from("instagram_accounts").select("id, instagram_actor_id, name"); if (error) throw error; return data as InstagramAccount[]; } });
     const { data: websites } = useQuery({ queryKey: ["websites"], queryFn: async () => { const { data, error } = await supabase.from("websites").select("id, name, url"); if (error) throw error; return data as Website[]; } });
+    const { data: templates } = useQuery({
+        queryKey: ["bulk_templates"], queryFn: async () => {
+            const { data, error } = await supabase.from("bulk_templates").select("*").order("created_at", { ascending: false });
+            if (error) throw error; return data as BulkTemplate[];
+        },
+    });
+
+    // ── Template functions ──
+    const applyTemplate = (tpl: BulkTemplate) => {
+        const c = tpl.config;
+        if (c.ad_config) setAdConfig(c.ad_config);
+        if (c.campaign_config) setNewCampaignConfig(c.campaign_config);
+        if (c.adset_config) setAdSetConfig(c.adset_config);
+        if (c.selected_account_ids) setSelectedAccounts(c.selected_account_ids);
+        if (c.selected_campaign_ids) setSelectedCampaignIds(c.selected_campaign_ids);
+        setCreateNewCampaigns(c.create_new_campaigns ?? false);
+        if (c.default_adset_qty && selectedFiles.length > 0) {
+            setSelectedFiles((prev) => prev.map((f) => ({ ...f, adSetQty: c.default_adset_qty })));
+        }
+        toast({ title: `Template "${tpl.name}" aplicado` });
+    };
+
+    const saveTemplateMutation = useMutation({
+        mutationFn: async () => {
+            const config = {
+                ad_config: adConfig,
+                campaign_config: newCampaignConfig,
+                adset_config: adSetConfig,
+                default_adset_qty: selectedFiles.length > 0 ? selectedFiles[0].adSetQty : 1,
+                create_new_campaigns: createNewCampaigns,
+                selected_account_ids: selectedAccounts,
+                selected_campaign_ids: selectedCampaignIds,
+            };
+            const { error } = await supabase.from("bulk_templates").insert({
+                user_id: user?.id, name: templateName, description: templateDesc || null, config,
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast({ title: "Template salvo!" });
+            setShowSaveDialog(false);
+            setTemplateName(""); setTemplateDesc("");
+            queryClient.invalidateQueries({ queryKey: ["bulk_templates"] });
+        },
+        onError: (e: any) => toast({ variant: "destructive", title: "Erro", description: e.message }),
+    });
+
+    // Auto-apply template from URL param
+    useEffect(() => {
+        const tplId = searchParams.get("template");
+        if (tplId && templates) {
+            const tpl = templates.find((t) => t.id === tplId);
+            if (tpl) { applyTemplate(tpl); setSearchParams({}); }
+        }
+    }, [templates, searchParams]);
 
     // ── Drive helpers ──
     const loadDriveFiles = async () => {
@@ -295,6 +358,24 @@ export default function BulkCreationPage() {
                             </Button>
                         </div>
                     </div>
+                    {/* Template selector — between URL and file list */}
+                    {driveFiles.length > 0 && templates && templates.length > 0 && (
+                        <div className="border rounded-lg p-3 bg-muted/30">
+                            <div className="flex items-center gap-3">
+                                <FileStack className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <Select onValueChange={(id) => { const t = templates.find((x) => x.id === id); if (t) applyTemplate(t); }}>
+                                    <SelectTrigger className="h-9"><SelectValue placeholder="Aplicar template..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {templates.map((t) => (
+                                            <SelectItem key={t.id} value={t.id}>
+                                                {t.name}{t.description ? ` — ${t.description}` : ""}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
                     {driveFiles.length > 0 && (
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
@@ -337,6 +418,7 @@ export default function BulkCreationPage() {
                     )}
                 </CardContent>
             </Card>
+
 
             <Card>
                 <CardHeader><CardTitle className="text-lg">Configurações do Anúncio</CardTitle></CardHeader>
@@ -547,13 +629,35 @@ export default function BulkCreationPage() {
                     </CardContent>
                 </Card>
 
-                <Button className="w-full" size="lg" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
-                    {submitMutation.isPending
-                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando e enviando ao n8n...</>
-                        : <><Send className="w-4 h-4 mr-2" />Criar Tudo ({totalCampaigns + totalSets + totalAds} itens)</>}
-                </Button>
+                <div className="flex gap-3">
+                    <Button className="flex-1" size="lg" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+                        {submitMutation.isPending
+                            ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando e enviando ao n8n...</>
+                            : <><Send className="w-4 h-4 mr-2" />Criar Tudo ({totalCampaigns + totalSets + totalAds} itens)</>}
+                    </Button>
+                    <Button variant="outline" size="lg" onClick={() => setShowSaveDialog(true)}>
+                        <Save className="w-4 h-4 mr-2" />Salvar Template
+                    </Button>
+                </div>
                 {submitMutation.isSuccess && <div className="flex items-center gap-2 text-green-600 justify-center"><CheckCircle2 className="w-5 h-5" /><span>Criado e enviado com sucesso!</span></div>}
                 {submitMutation.isError && <div className="flex items-center gap-2 text-red-500 justify-center"><XCircle className="w-5 h-5" /><span>Erro ao criar. Tente novamente.</span></div>}
+
+                {/* Save Template Dialog */}
+                <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>Salvar como Template</DialogTitle></DialogHeader>
+                        <div className="space-y-4 py-2">
+                            <div><Label>Nome *</Label><Input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Ex: Black Friday Vendas" /></div>
+                            <div><Label>Descrição</Label><Input value={templateDesc} onChange={(e) => setTemplateDesc(e.target.value)} placeholder="Ex: 3 conjuntos por campanha, CBO vendas" /></div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>Cancelar</Button>
+                            <Button onClick={() => saveTemplateMutation.mutate()} disabled={!templateName || saveTemplateMutation.isPending}>
+                                {saveTemplateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}Salvar
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         );
     };
