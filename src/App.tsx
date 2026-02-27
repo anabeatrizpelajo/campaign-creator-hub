@@ -19,7 +19,6 @@ import AdSetsPage from "./pages/AdSetsPage";
 import AdsPage from "./pages/AdsPage";
 import PixelsPage from "./pages/PixelsPage";
 import ExecutionsPage from "./pages/ExecutionsPage";
-import SettingsPage from "./pages/SettingsPage";
 import BulkCreationPage from "./pages/BulkCreationPage";
 import NotFound from "./pages/NotFound";
 
@@ -66,7 +65,6 @@ const App = () => (
                       <Route path="/ad-sets" element={<AdSetsPage />} />
                       <Route path="/ads" element={<AdsPage />} />
                       <Route path="/executions" element={<ExecutionsPage />} />
-                      <Route path="/settings" element={<SettingsPage />} />
                       <Route path="/bulk" element={<BulkCreationPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

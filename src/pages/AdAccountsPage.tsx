@@ -43,17 +43,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface BusinessManager {
-  id: string;
+  id: number;
   name: string;
 }
 
 interface AdAccount {
-  id: string;
+  id: number;
   account_id: string;
   account_name: string;
-  business_manager_id: string | null;
+  business_manager_id: number | null;
   currency: string;
-  status: "active" | "paused" | "error";
+  status: "active" | "inactive" | "paused" | "error";
   business_managers: { name: string } | null;
 }
 
@@ -89,7 +89,7 @@ export default function AdAccountsPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as AdAccount[];
+      return data as unknown as AdAccount[];
     },
   });
 
@@ -98,8 +98,8 @@ export default function AdAccountsPage() {
       const { error } = await supabase.from("ad_accounts").insert({
         account_id: account.account_id,
         account_name: account.account_name,
-        business_manager_id: account.business_manager_id || null,
-      });
+        business_manager_id: account.business_manager_id ? parseInt(account.business_manager_id) : null,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -118,7 +118,7 @@ export default function AdAccountsPage() {
   });
 
   const deleteAccountMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (id: number) => {
       const { error } = await supabase.from("ad_accounts").delete().eq("id", id);
       if (error) throw error;
     },

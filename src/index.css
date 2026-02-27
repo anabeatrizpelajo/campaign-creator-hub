@@ -151,4 +151,8 @@
   .status-error {
     @apply bg-destructive/10 text-destructive;
   }
+
+  .status-inactive {
+    @apply bg-destructive/10 text-destructive;
+  }
 }

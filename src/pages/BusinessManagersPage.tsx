@@ -1,17 +1,9 @@
-import { useState } from "react";
-import { Plus, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,8 +21,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,12 +35,6 @@ interface BusinessManager {
 export default function BusinessManagersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newBM, setNewBM] = useState({
-    name: "",
-    business_manager_id: "",
-    access_token: "",
-  });
 
   const { data: businessManagers, isLoading } = useQuery({
     queryKey: ["business_managers"],
@@ -65,29 +49,7 @@ export default function BusinessManagersPage() {
     },
   });
 
-  const addBMMutation = useMutation({
-    mutationFn: async (bm: typeof newBM) => {
-      const { error } = await supabase.from("business_managers").insert({
-        name: bm.name,
-        business_manager_id: bm.business_manager_id,
-        access_token: bm.access_token || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["business_managers"] });
-      setIsDialogOpen(false);
-      setNewBM({ name: "", business_manager_id: "", access_token: "" });
-      toast({ title: "Business Manager adicionado!" });
-    },
-    onError: (error: any) => {
-      toast({
-        variant: "destructive",
-        title: "Erro ao adicionar",
-        description: error.message,
-      });
-    },
-  });
+
 
   const deleteBMMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -176,57 +138,6 @@ export default function BusinessManagersPage() {
       <PageHeader
         title="Business Managers"
         description="Visualize seus Business Managers do Meta"
-        action={
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo BM
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Adicionar Business Manager</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div>
-                  <Label htmlFor="bm_name">Nome *</Label>
-                  <Input
-                    id="bm_name"
-                    placeholder="Ex: BM Principal"
-                    value={newBM.name}
-                    onChange={(e) => setNewBM({ ...newBM, name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="bm_id">Business Manager ID *</Label>
-                  <Input
-                    id="bm_id"
-                    placeholder="Ex: 123456789"
-                    value={newBM.business_manager_id}
-                    onChange={(e) => setNewBM({ ...newBM, business_manager_id: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="access_token">Access Token</Label>
-                  <Input
-                    id="access_token"
-                    placeholder="Token de acesso (opcional)"
-                    value={newBM.access_token}
-                    onChange={(e) => setNewBM({ ...newBM, access_token: e.target.value })}
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={() => addBMMutation.mutate(newBM)}
-                  disabled={!newBM.name || !newBM.business_manager_id || addBMMutation.isPending}
-                >
-                  {addBMMutation.isPending ? "Salvando..." : "Salvar"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        }
       />
 
       {isLoading ? (
