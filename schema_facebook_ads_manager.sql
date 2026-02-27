@@ -8,6 +8,15 @@
 
 CREATE SCHEMA IF NOT EXISTS facebook_ads_manager;
 
+-- Permissões obrigatórias para o PostgREST (API do Supabase)
+GRANT USAGE ON SCHEMA facebook_ads_manager TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA facebook_ads_manager TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA facebook_ads_manager TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA facebook_ads_manager
+  GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA facebook_ads_manager
+  GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+
 
 -- =====================================================================
 -- 1. PROFILES

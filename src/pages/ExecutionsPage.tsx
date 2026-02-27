@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Execution {
-    id: string;
+    id: number;
     name: string;
     status: "pending" | "completed" | "error";
     total_campaigns: number;
