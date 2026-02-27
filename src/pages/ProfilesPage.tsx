@@ -43,10 +43,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Profile {
-  id: string;
-  name: string;
-  email: string | null;
-  status: string;
+  id: number;
+  full_name: string;
 }
 
 export default function ProfilesPage() {
@@ -55,8 +53,7 @@ export default function ProfilesPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newProfile, setNewProfile] = useState({
-    name: "",
-    email: "",
+    full_name: "",
   });
 
   const { data: profiles, isLoading } = useQuery({
@@ -64,27 +61,25 @@ export default function ProfilesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name, email, status")
+        .select("id, full_name")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as Profile[];
+      return data as unknown as Profile[];
     },
   });
 
   const addProfileMutation = useMutation({
     mutationFn: async (profile: typeof newProfile) => {
       const { error } = await supabase.from("profiles").insert({
-        user_id: user?.id,
-        name: profile.name,
-        email: profile.email || null,
+        full_name: profile.full_name,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles"] });
       setIsDialogOpen(false);
-      setNewProfile({ name: "", email: "" });
+      setNewProfile({ full_name: "" });
       toast({ title: "Perfil adicionado!" });
     },
     onError: (error: any) => {
@@ -96,22 +91,8 @@ export default function ProfilesPage() {
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profiles"] });
-      toast({ title: "Status atualizado" });
-    },
-  });
-
   const deleteProfileMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (id: number) => {
       const { error } = await supabase.from("profiles").delete().eq("id", id);
       if (error) throw error;
     },
@@ -121,35 +102,8 @@ export default function ProfilesPage() {
     },
   });
 
-  const getStatusBadge = (status: string) => {
-    return status === "active" ? (
-      <Badge className="bg-green-500">Ativo</Badge>
-    ) : (
-      <Badge variant="outline">Inativo</Badge>
-    );
-  };
-
   const columns = [
-    { key: "name", header: "Nome" },
-    { key: "email", header: "Email", render: (p: Profile) => p.email || "-" },
-    {
-      key: "status",
-      header: "Status",
-      render: (p: Profile) => (
-        <Select
-          value={p.status}
-          onValueChange={(value) => updateStatusMutation.mutate({ id: p.id, status: value })}
-        >
-          <SelectTrigger className="w-28">
-            <SelectValue>{getStatusBadge(p.status)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">Ativo</SelectItem>
-            <SelectItem value="inactive">Inativo</SelectItem>
-          </SelectContent>
-        </Select>
-      ),
-    },
+    { key: "full_name", header: "Nome" },
     {
       key: "actions",
       header: "",
@@ -210,32 +164,20 @@ export default function ProfilesPage() {
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div>
-                  <Label htmlFor="name">Nome *</Label>
+                  <Label htmlFor="full_name">Nome *</Label>
                   <Input
-                    id="name"
+                    id="full_name"
                     placeholder="Ex: Perfil Principal"
-                    value={newProfile.name}
+                    value={newProfile.full_name}
                     onChange={(e) =>
-                      setNewProfile({ ...newProfile, name: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="perfil@email.com"
-                    value={newProfile.email}
-                    onChange={(e) =>
-                      setNewProfile({ ...newProfile, email: e.target.value })
+                      setNewProfile({ ...newProfile, full_name: e.target.value })
                     }
                   />
                 </div>
                 <Button
                   className="w-full"
                   onClick={() => addProfileMutation.mutate(newProfile)}
-                  disabled={!newProfile.name || addProfileMutation.isPending}
+                  disabled={!newProfile.full_name || addProfileMutation.isPending}
                 >
                   {addProfileMutation.isPending ? "Salvando..." : "Salvar"}
                 </Button>

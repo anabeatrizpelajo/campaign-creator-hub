@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
     ArrowLeft, ArrowRight, Send, Loader2, ChevronRight,
     Megaphone, Layers, FileImage, CheckCircle2, XCircle, FolderOpen, Save, FileStack,
@@ -33,7 +33,7 @@ const CTA_OPTIONS = [
     { value: "DOWNLOAD", label: "Baixar" },
     { value: "WATCH_MORE", label: "Assistir" },
 ];
-const STEPS = ["Criativos", "Conjuntos", "Campanhas", "Revisão"];
+const STEPS = ["Criativos", "Conjuntos", "Campanhas", "Revisão", "Enviado"];
 
 interface AdAccount { id: string; account_id: string; account_name: string; }
 interface Pixel { id: string; name: string; pixel_id: string; }
@@ -54,8 +54,10 @@ export default function BulkCreationPage() {
     const { user } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [step, setStep] = useState(0);
+    const [executionId, setExecutionId] = useState<string | null>(null);
     const [showSaveDialog, setShowSaveDialog] = useState(false);
     const [templateName, setTemplateName] = useState("");
     const [templateDesc, setTemplateDesc] = useState("");
@@ -142,7 +144,7 @@ export default function BulkCreationPage() {
                 selected_campaign_ids: selectedCampaignIds,
             };
             const { error } = await supabase.from("bulk_templates").insert({
-                user_id: user?.id, name: templateName, description: templateDesc || null, config,
+                name: templateName, description: templateDesc || null, config,
             });
             if (error) throw error;
         },
@@ -329,14 +331,28 @@ export default function BulkCreationPage() {
             if (!res.ok) throw new Error("Webhook falhou");
             return webhookCampaigns;
         },
-        onSuccess: () => toast({ title: "Enviado com sucesso!", description: `${totalCampaigns} campanhas, ${totalSets} conjuntos e ${totalAds} anúncios.` }),
+        onSuccess: async (webhookCampaigns) => {
+            // Save execution record
+            const now = new Date();
+            const execName = `Bulk ${now.toLocaleDateString("pt-BR")} ${now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+            const { data: exec } = await supabase.from("bulk_executions").insert({
+                name: execName,
+                status: "pending",
+                total_campaigns: totalCampaigns,
+                total_adsets: totalSets,
+                total_ads: totalAds,
+            }).select("id").single();
+            if (exec) setExecutionId(exec.id);
+            toast({ title: "Enviado com sucesso!", description: `${totalCampaigns} campanhas, ${totalSets} conjuntos e ${totalAds} anúncios.` });
+            setStep(4);
+        },
         onError: (error: any) => toast({ variant: "destructive", title: "Erro ao criar", description: error.message }),
     });
 
     const canGoNext = () => {
-        if (step === 0) return selectedFiles.length > 0 && adConfig.ad_page_id && adConfig.website_id;
+        if (step === 0) return selectedFiles.length > 0 && adConfig.ad_page_id && adConfig.website_id && selectedAccounts.length > 0;
         if (step === 1) return adSetConfig.name && adSetConfig.countries;
-        if (step === 2) return selectedCampaignIds.length > 0 || (createNewCampaigns && selectedAccounts.length > 0 && newCampaignConfig.name);
+        if (step === 2) return selectedCampaignIds.length > 0 || (createNewCampaigns && newCampaignConfig.name);
         return true;
     };
 
@@ -345,6 +361,23 @@ export default function BulkCreationPage() {
     // ════════════════════════════════════════
     const renderStep0 = () => (
         <div className="space-y-6">
+            {/* Account selection */}
+            <Card>
+                <CardHeader><CardTitle className="text-lg flex items-center gap-2">📊 Contas de Anúncio *</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                    {(!adAccounts || adAccounts.length === 0) ? (
+                        <p className="text-sm text-muted-foreground">Nenhuma conta encontrada.</p>
+                    ) : (
+                        adAccounts.map((acc) => (
+                            <div key={acc.id} className="flex items-center gap-3">
+                                <Checkbox checked={selectedAccounts.includes(acc.id)} onCheckedChange={() => toggleAccount(acc.id)} />
+                                <label className="text-sm cursor-pointer">{acc.account_name} <span className="text-muted-foreground">({acc.account_id})</span></label>
+                            </div>
+                        ))
+                    )}
+                </CardContent>
+            </Card>
+
             <Card>
                 <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FolderOpen className="w-5 h-5" />Criativos do Google Drive</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
@@ -480,10 +513,10 @@ export default function BulkCreationPage() {
             <Card>
                 <CardHeader><CardTitle className="text-lg">Campanhas Existentes</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                    {(!existingCampaigns || existingCampaigns.length === 0) ? (
-                        <p className="text-sm text-muted-foreground">Nenhuma campanha encontrada.</p>
-                    ) : (
-                        existingCampaigns.map((camp) => {
+                    {(() => {
+                        const filtered = existingCampaigns?.filter((c) => selectedAccounts.includes(c.ad_account_id)) || [];
+                        if (filtered.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma campanha encontrada para as contas selecionadas.</p>;
+                        return filtered.map((camp) => {
                             const acc = adAccounts?.find((a) => a.id === camp.ad_account_id);
                             return (
                                 <div key={camp.id} className="flex items-center gap-3">
@@ -496,8 +529,8 @@ export default function BulkCreationPage() {
                                     </div>
                                 </div>
                             );
-                        })
-                    )}
+                        });
+                    })()}
                 </CardContent>
             </Card>
 
@@ -511,17 +544,7 @@ export default function BulkCreationPage() {
                 </CardHeader>
                 {createNewCampaigns && (
                     <CardContent className="space-y-4">
-                        <div>
-                            <Label className="text-sm font-medium">Contas de Anúncio</Label>
-                            <div className="space-y-2 mt-2">
-                                {adAccounts?.map((acc) => (
-                                    <div key={acc.id} className="flex items-center gap-3">
-                                        <Checkbox checked={selectedAccounts.includes(acc.id)} onCheckedChange={() => toggleAccount(acc.id)} />
-                                        <label className="text-sm cursor-pointer">{acc.account_name} <span className="text-muted-foreground">({acc.account_id})</span></label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        <p className="text-sm text-muted-foreground">As novas campanhas serão criadas nas {selectedAccounts.length} conta(s) selecionada(s) no passo 1.</p>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <Label>Nome Base *</Label>
@@ -663,7 +686,40 @@ export default function BulkCreationPage() {
         );
     };
 
-    const renderCurrentStep = () => { switch (step) { case 0: return renderStep0(); case 1: return renderStep2(); case 2: return renderStep1(); case 3: return renderStep3(); default: return null; } };
+    // ════════════════════════════════════════
+    // Step 4: Enviado (Summary + Redirect)
+    // ════════════════════════════════════════
+    // Auto-redirect after 4 seconds
+    useEffect(() => {
+        if (step === 4) {
+            const timer = setTimeout(() => navigate("/executions"), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [step]);
+
+    const renderStep4 = () => (
+        <div className="space-y-6 text-center py-8">
+            <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-8 h-8 text-green-600" />
+                </div>
+            </div>
+            <div>
+                <h2 className="text-xl font-bold">Criação enviada com sucesso!</h2>
+                <p className="text-muted-foreground mt-1">Os itens foram salvos e enviados para o n8n</p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
+                <Card><CardContent className="pt-6 text-center"><Megaphone className="w-6 h-6 mx-auto mb-1 text-primary" /><p className="text-2xl font-bold">{totalCampaigns}</p><p className="text-xs text-muted-foreground">Campanhas</p></CardContent></Card>
+                <Card><CardContent className="pt-6 text-center"><Layers className="w-6 h-6 mx-auto mb-1 text-primary" /><p className="text-2xl font-bold">{totalSets}</p><p className="text-xs text-muted-foreground">Conjuntos</p></CardContent></Card>
+                <Card><CardContent className="pt-6 text-center"><FileImage className="w-6 h-6 mx-auto mb-1 text-primary" /><p className="text-2xl font-bold">{totalAds}</p><p className="text-xs text-muted-foreground">Anúncios</p></CardContent></Card>
+            </div>
+
+            <p className="text-sm text-muted-foreground animate-pulse">Redirecionando para execuções...</p>
+        </div>
+    );
+
+    const renderCurrentStep = () => { switch (step) { case 0: return renderStep0(); case 1: return renderStep2(); case 2: return renderStep1(); case 3: return renderStep3(); case 4: return renderStep4(); default: return null; } };
 
     return (
         <div className="animate-fade-in max-w-4xl mx-auto">

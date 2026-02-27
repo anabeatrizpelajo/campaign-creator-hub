@@ -14,7 +14,7 @@ interface DataTableProps<T> {
   onRowClick?: (item: T) => void;
 }
 
-export function DataTable<T extends { id: string }>({ columns, data, onRowClick }: DataTableProps<T>) {
+export function DataTable<T extends { id: string | number }>({ columns, data, onRowClick }: DataTableProps<T>) {
   return (
     <div className="bg-card rounded-lg border overflow-hidden">
       <div className="overflow-x-auto">
@@ -35,8 +35,8 @@ export function DataTable<T extends { id: string }>({ columns, data, onRowClick 
               </tr>
             ) : (
               data.map((item) => (
-                <tr 
-                  key={item.id} 
+                <tr
+                  key={item.id}
                   onClick={() => onRowClick?.(item)}
                   className={onRowClick ? "cursor-pointer" : ""}
                 >

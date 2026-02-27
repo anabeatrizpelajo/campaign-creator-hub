@@ -2,14 +2,12 @@ import {
   LayoutDashboard,
   Building2,
   CreditCard,
-  Megaphone,
-  Layers,
-  FileImage,
   Settings,
-  Zap,
+  Activity,
   Copy,
   Rocket,
   LogOut,
+  Megaphone,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,15 +29,12 @@ const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Business Managers", url: "/business-managers", icon: Building2 },
   { title: "Contas de Anúncio", url: "/ad-accounts", icon: CreditCard },
-  { title: "Campanhas", url: "/campaigns", icon: Megaphone },
-  { title: "Conjuntos de Anúncios", url: "/ad-sets", icon: Layers },
-  { title: "Anúncios", url: "/ads", icon: FileImage },
   { title: "Criação em Massa", url: "/bulk", icon: Rocket },
   { title: "Templates", url: "/templates", icon: Copy },
 ];
 
 const automationItems = [
-  { title: "Automações", url: "/automations", icon: Zap },
+  { title: "Execuções", url: "/executions", icon: Activity },
   { title: "Configurações", url: "/settings", icon: Settings },
 ];
 

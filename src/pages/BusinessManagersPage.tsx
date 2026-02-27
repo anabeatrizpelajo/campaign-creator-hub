@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, MoreHorizontal, RefreshCw, Trash2, AlertCircle } from "lucide-react";
+import { Plus, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -29,34 +29,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-interface Profile {
-  id: string;
-  name: string;
-}
-
 interface BusinessManager {
-  id: string;
-  profile_id: string;
+  id: number;
   name: string;
-  facebook_business_manager_id: string;
+  business_manager_id: string;
   access_token: string | null;
-  token_expires_at: string | null;
-  token_type: string;
-  status: string;
-  profiles: { name: string } | null;
-  ad_accounts: { id: string; account_name: string }[];
+  ad_accounts: { id: number; account_name: string }[];
 }
 
 export default function BusinessManagersPage() {
@@ -64,24 +47,9 @@ export default function BusinessManagersPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newBM, setNewBM] = useState({
-    profile_id: "",
     name: "",
-    facebook_business_manager_id: "",
+    business_manager_id: "",
     access_token: "",
-    token_expires_at: "",
-    token_type: "system_user",
-  });
-
-  const { data: profiles } = useQuery({
-    queryKey: ["profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, name")
-        .order("name");
-      if (error) throw error;
-      return data as Profile[];
-    },
   });
 
   const { data: businessManagers, isLoading } = useQuery({
@@ -89,37 +57,27 @@ export default function BusinessManagersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("business_managers")
-        .select("*, profiles(name), ad_accounts(id, account_name)")
+        .select("*, ad_accounts(id, account_name)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as BusinessManager[];
+      return data as unknown as BusinessManager[];
     },
   });
 
   const addBMMutation = useMutation({
     mutationFn: async (bm: typeof newBM) => {
       const { error } = await supabase.from("business_managers").insert({
-        profile_id: bm.profile_id,
         name: bm.name,
-        facebook_business_manager_id: bm.facebook_business_manager_id,
+        business_manager_id: bm.business_manager_id,
         access_token: bm.access_token || null,
-        token_expires_at: bm.token_expires_at || null,
-        token_type: bm.token_type,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["business_managers"] });
       setIsDialogOpen(false);
-      setNewBM({
-        profile_id: "",
-        name: "",
-        facebook_business_manager_id: "",
-        access_token: "",
-        token_expires_at: "",
-        token_type: "system_user",
-      });
+      setNewBM({ name: "", business_manager_id: "", access_token: "" });
       toast({ title: "Business Manager adicionado!" });
     },
     onError: (error: any) => {
@@ -132,7 +90,7 @@ export default function BusinessManagersPage() {
   });
 
   const deleteBMMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (id: number) => {
       const { error } = await supabase.from("business_managers").delete().eq("id", id);
       if (error) throw error;
     },
@@ -149,34 +107,18 @@ export default function BusinessManagersPage() {
     },
   });
 
-  const getStatusBadge = (status: string, expiresAt: string | null) => {
-    if (status === "banned") {
-      return <Badge variant="destructive">Banido</Badge>;
-    }
-    if (expiresAt && new Date(expiresAt) < new Date()) {
-      return <Badge className="bg-yellow-500 text-black">Token Expirado</Badge>;
-    }
-    return <Badge className="bg-green-500">Ativo</Badge>;
-  };
-
-  const formatDate = (date: string | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
-
   const columns = [
     { key: "name", header: "Nome" },
+    { key: "business_manager_id", header: "BM ID" },
     {
-      key: "profile",
-      header: "Perfil",
-      render: (bm: BusinessManager) => bm.profiles?.name || "-",
-    },
-    { key: "facebook_business_manager_id", header: "BM ID" },
-    { key: "token_type", header: "Tipo Token" },
-    {
-      key: "token_expires_at",
-      header: "Expira em",
-      render: (bm: BusinessManager) => formatDate(bm.token_expires_at),
+      key: "access_token",
+      header: "Token",
+      render: (bm: BusinessManager) =>
+        bm.access_token ? (
+          <Badge className="bg-green-500">Configurado</Badge>
+        ) : (
+          <Badge variant="outline">Sem token</Badge>
+        ),
     },
     {
       key: "ad_accounts_count",
@@ -189,11 +131,6 @@ export default function BusinessManagersPage() {
           </Badge>
         );
       },
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (bm: BusinessManager) => getStatusBadge(bm.status, bm.token_expires_at),
     },
     {
       key: "actions",
@@ -239,6 +176,57 @@ export default function BusinessManagersPage() {
       <PageHeader
         title="Business Managers"
         description="Visualize seus Business Managers do Meta"
+        action={
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo BM
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Adicionar Business Manager</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div>
+                  <Label htmlFor="bm_name">Nome *</Label>
+                  <Input
+                    id="bm_name"
+                    placeholder="Ex: BM Principal"
+                    value={newBM.name}
+                    onChange={(e) => setNewBM({ ...newBM, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bm_id">Business Manager ID *</Label>
+                  <Input
+                    id="bm_id"
+                    placeholder="Ex: 123456789"
+                    value={newBM.business_manager_id}
+                    onChange={(e) => setNewBM({ ...newBM, business_manager_id: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="access_token">Access Token</Label>
+                  <Input
+                    id="access_token"
+                    placeholder="Token de acesso (opcional)"
+                    value={newBM.access_token}
+                    onChange={(e) => setNewBM({ ...newBM, access_token: e.target.value })}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => addBMMutation.mutate(newBM)}
+                  disabled={!newBM.name || !newBM.business_manager_id || addBMMutation.isPending}
+                >
+                  {addBMMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        }
       />
 
       {isLoading ? (
