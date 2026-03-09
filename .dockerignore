@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.env
+.env.local
+*.md
+*.sql
+.vscode
+.gemini
+supabase
+src/test
+vitest.config.ts
