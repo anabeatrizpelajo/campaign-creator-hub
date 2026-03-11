@@ -251,7 +251,7 @@ export default function AdsPage() {
 
       // Send webhook to n8n
       try {
-        await fetch("https://webhook2.uvepom.com/webhook/create-ad", {
+        await fetch(import.meta.env.VITE_N8N_WEBHOOK_CREATE_AD, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

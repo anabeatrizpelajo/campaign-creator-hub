@@ -79,6 +79,7 @@ export default function BulkCreationPage() {
     const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
     const [createNewCampaigns, setCreateNewCampaigns] = useState(false);
     const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+    const [accountSearch, setAccountSearch] = useState("");
     const [newCampaignConfig, setNewCampaignConfig] = useState({
         name: "Campanha {{i}}", quantity: 1,
         objective: "OUTCOME_SALES", daily_budget: "20",
@@ -170,7 +171,7 @@ export default function BulkCreationPage() {
     const loadDriveFiles = async () => {
         setIsLoadingDrive(true);
         try {
-            const res = await fetch("https://webhook.myflowhub.cloud/webhook/list-drive-files", {
+            const res = await fetch(import.meta.env.VITE_N8N_WEBHOOK_LIST_DRIVE, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ folder_url: driveUrl }),
             });
@@ -324,7 +325,7 @@ export default function BulkCreationPage() {
                 });
             }
 
-            const res = await fetch("https://webhook.myflowhub.cloud/webhook/create-bulk", {
+            const res = await fetch(import.meta.env.VITE_N8N_WEBHOOK_BULK, {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ campaigns: webhookCampaigns, user_id: user?.id, total_campaigns: totalCampaigns, total_adsets: totalSets, total_ads: totalAds }),
             });
@@ -363,17 +364,75 @@ export default function BulkCreationPage() {
         <div className="space-y-6">
             {/* Account selection */}
             <Card>
-                <CardHeader><CardTitle className="text-lg flex items-center gap-2">📊 Contas de Anúncio *</CardTitle></CardHeader>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">📊 Contas de Anúncio *</CardTitle>
+                        {adAccounts && adAccounts.length > 0 && (
+                            <Badge variant="secondary">{selectedAccounts.length}/{adAccounts.length} selecionada(s)</Badge>
+                        )}
+                    </div>
+                </CardHeader>
                 <CardContent className="space-y-3">
                     {(!adAccounts || adAccounts.length === 0) ? (
                         <p className="text-sm text-muted-foreground">Nenhuma conta encontrada.</p>
                     ) : (
-                        adAccounts.map((acc) => (
-                            <div key={acc.id} className="flex items-center gap-3">
-                                <Checkbox checked={selectedAccounts.includes(acc.id)} onCheckedChange={() => toggleAccount(acc.id)} />
-                                <label className="text-sm cursor-pointer">{acc.account_name} <span className="text-muted-foreground">({acc.account_id})</span></label>
+                        <>
+                            <div className="flex gap-2">
+                                <div className="flex-1">
+                                    <Input
+                                        placeholder="Buscar por nome ou ID da conta..."
+                                        value={accountSearch}
+                                        onChange={(e) => setAccountSearch(e.target.value)}
+                                        className="h-9"
+                                    />
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 whitespace-nowrap"
+                                    onClick={() => {
+                                        const filtered = adAccounts.filter((acc) => {
+                                            const q = accountSearch.toLowerCase();
+                                            return !q || acc.account_name.toLowerCase().includes(q) || acc.account_id.toLowerCase().includes(q);
+                                        });
+                                        const filteredIds = filtered.map((a) => a.id);
+                                        const allSelected = filteredIds.every((id) => selectedAccounts.includes(id));
+                                        if (allSelected) {
+                                            setSelectedAccounts((prev) => prev.filter((id) => !filteredIds.includes(id)));
+                                        } else {
+                                            setSelectedAccounts((prev) => [...new Set([...prev, ...filteredIds])]);
+                                        }
+                                    }}
+                                >
+                                    {(() => {
+                                        const filtered = adAccounts.filter((acc) => {
+                                            const q = accountSearch.toLowerCase();
+                                            return !q || acc.account_name.toLowerCase().includes(q) || acc.account_id.toLowerCase().includes(q);
+                                        });
+                                        return filtered.every((a) => selectedAccounts.includes(a.id)) ? "Desmarcar todos" : "Marcar todos";
+                                    })()}
+                                </Button>
                             </div>
-                        ))
+                            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                                {adAccounts
+                                    .filter((acc) => {
+                                        const q = accountSearch.toLowerCase();
+                                        return !q || acc.account_name.toLowerCase().includes(q) || acc.account_id.toLowerCase().includes(q);
+                                    })
+                                    .map((acc) => (
+                                        <div key={acc.id} className="flex items-center gap-3">
+                                            <Checkbox checked={selectedAccounts.includes(acc.id)} onCheckedChange={() => toggleAccount(acc.id)} />
+                                            <label className="text-sm cursor-pointer">{acc.account_name} <span className="text-muted-foreground">({acc.account_id})</span></label>
+                                        </div>
+                                    ))}
+                                {adAccounts.filter((acc) => {
+                                    const q = accountSearch.toLowerCase();
+                                    return !q || acc.account_name.toLowerCase().includes(q) || acc.account_id.toLowerCase().includes(q);
+                                }).length === 0 && (
+                                        <p className="text-sm text-muted-foreground py-2">Nenhuma conta encontrada para "{accountSearch}"</p>
+                                    )}
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

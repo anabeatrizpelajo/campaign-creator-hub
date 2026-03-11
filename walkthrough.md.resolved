@@ -1,0 +1,118 @@
+# Deploy Campaign Creator Hub — Passo a Passo
+
+## Parte 1: Preparar a Imagem (no seu computador)
+
+### 1.1 — Criar Token no GitHub
+1. Abra **github.com** → clique na sua **foto** (canto superior direito) → **Settings**
+2. Menu lateral, vá até o final → **Developer settings**
+3. **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**
+4. Preencha:
+   - **Note:** `docker-portainer`
+   - **Expiration:** 90 days (ou o que preferir)
+   - Marque: ✅ `write:packages` ✅ `read:packages` ✅ `delete:packages`
+5. **Generate token** → **copie o token** (aparece só uma vez!)
+
+### 1.2 — Login no Registry (Terminal/PowerShell)
+```powershell
+docker login ghcr.io -u anabeatrizpelajo
+```
+Quando pedir senha → **cole o token** da etapa anterior.
+
+### 1.3 — Buildar a Imagem
+Na pasta do projeto (`c:\Users\Ana Beatriz\campaign-creator-hub`):
+
+```powershell
+docker build -t ghcr.io/anabeatrizpelajo/campaign-creator-hub:latest --build-arg VITE_SUPABASE_PROJECT_ID="diqqitqdwcphpstgpclx" --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcXFpdHFkd2NwaHBzdGdwY2x4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE4MTI5ODIsImV4cCI6MjA1NzM4ODk4Mn0.1-xDfzS-8lcLjYeq_1XMKVnCsdIXJwKhqVkt2r5-YgY" --build-arg VITE_SUPABASE_URL="https://diqqitqdwcphpstgpclx.supabase.co" --build-arg VITE_N8N_WEBHOOK_CREATE="https://webhook2.uvepom.com/webhook/create-campaign" --build-arg VITE_N8N_WEBHOOK_EDIT="https://webhook2.uvepom.com/webhook/edit-campaign" --build-arg VITE_N8N_WEBHOOK_DELETE="https://webhook2.uvepom.com/webhook/delete-campaign" .
+```
+Aguarde 2-5 minutos.
+
+### 1.4 — Subir a Imagem
+```powershell
+docker push ghcr.io/anabeatrizpelajo/campaign-creator-hub:latest
+```
+
+### 1.5 — Tornar Pacote Público
+1. Acesse **github.com/anabeatrizpelajo** → aba **Packages**
+2. Clique em **campaign-creator-hub**
+3. **Package settings** (engrenagem) → **Danger Zone** → **Change visibility** → **Public**
+
+---
+
+## Parte 2: Deploy no Portainer
+
+### 2.1 — Acessar o Portainer
+1. Abra o Portainer no navegador (ex: `https://portainer.seudominio.com`)
+2. Faça login
+
+### 2.2 — Selecionar o Ambiente
+1. Na tela inicial, clique no **Environment** (servidor) onde vai fazer o deploy
+
+### 2.3 — Criar a Stack
+1. No menu lateral, clique em **Stacks**
+2. Clique no botão **+ Add stack**
+
+### 2.4 — Configurar a Stack
+1. **Name:** digite `campaign-creator-hub`
+2. **Build method:** selecione **Web editor**
+3. No editor, **cole** o seguinte conteúdo:
+
+```yaml
+version: "3.8"
+
+services:
+  campaign-creator-hub:
+    image: ghcr.io/anabeatrizpelajo/campaign-creator-hub:latest
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admanager.rule=Host(`admanger.myflowhub.cloud`)"
+      - "traefik.http.routers.admanager.entrypoints=websecure"
+      - "traefik.http.routers.admanager.tls.certresolver=letsencrypt"
+      - "traefik.http.services.admanager.loadbalancer.server.port=80"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true
+```
+
+4. **Environment variables** → não precisa adicionar nada
+5. **Access control** → deixe como está (Administrators)
+
+### 2.5 — Fazer o Deploy
+1. Clique em **Deploy the stack**
+2. Aguarde — deve aparecer status **running** em verde ✅
+
+### 2.6 — Verificar
+1. Abra o navegador e acesse: **https://admanger.myflowhub.cloud**
+2. A tela de login do Campaign Creator Hub deve aparecer!
+
+---
+
+## Atualizações Futuras
+
+Quando fizer alterações no código:
+
+1. **No seu computador** — rebuild e push:
+```powershell
+docker build -t ghcr.io/anabeatrizpelajo/campaign-creator-hub:latest --build-arg VITE_SUPABASE_PROJECT_ID="diqqitqdwcphpstgpclx" --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpcXFpdHFkd2NwaHBzdGdwY2x4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE4MTI5ODIsImV4cCI6MjA1NzM4ODk4Mn0.1-xDfzS-8lcLjYeq_1XMKVnCsdIXJwKhqVkt2r5-YgY" --build-arg VITE_SUPABASE_URL="https://diqqitqdwcphpstgpclx.supabase.co" --build-arg VITE_N8N_WEBHOOK_CREATE="https://webhook2.uvepom.com/webhook/create-campaign" --build-arg VITE_N8N_WEBHOOK_EDIT="https://webhook2.uvepom.com/webhook/edit-campaign" --build-arg VITE_N8N_WEBHOOK_DELETE="https://webhook2.uvepom.com/webhook/delete-campaign" .
+docker push ghcr.io/anabeatrizpelajo/campaign-creator-hub:latest
+```
+
+2. **No Portainer:**
+   - Vá em **Stacks** → `campaign-creator-hub`
+   - Clique em **Stop this stack** (se necessário)
+   - Depois **Pull and redeploy** ou **Update the stack**
+
+---
+
+## Troubleshooting
+
+| Problema | Solução |
+|---|---|
+| "Deploy" não clica | Verifique se digitou o nome da stack |
+| Container reiniciando | Veja os logs: Stacks → container → **Logs** |
+| Site não abre | Verifique se o DNS de `admanger.myflowhub.cloud` aponta para o IP do servidor |
+| Erro de rede `traefik` | Verifique o nome: pode ser `proxy` ou `web` em vez de `traefik` |
+| SSL não funciona | O certresolver pode ter outro nome (ex: `le`, `myresolver`) |

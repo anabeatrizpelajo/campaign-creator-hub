@@ -168,7 +168,7 @@ export default function AdSetsPage() {
 
       // Send webhook
       try {
-        await fetch("https://webhook2.uvepom.com/webhook/create-adset", {
+        await fetch(import.meta.env.VITE_N8N_WEBHOOK_CREATE_ADSET, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
